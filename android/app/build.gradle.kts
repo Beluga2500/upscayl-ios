@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "fork.upscayl.android"
     compileSdk = 35
-    ndkVersion = "27.2.12479018"
+    ndkVersion = System.getenv("NDK_VERSION") ?: "28.2.13676358"
 
     defaultConfig {
         applicationId = "fork.upscayl.android"

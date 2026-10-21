@@ -26,7 +26,11 @@ jobs:
         run: |
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --licenses > /dev/null || true
-          "$SDKM" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+          # NDK le plus récent : le ncnn précompilé a besoin d'une libc++ récente
+          NDK=$("$SDKM" --list 2>/dev/null | grep -oE 'ndk;[0-9]+\.[0-9]+\.[0-9]+' | sort -uV | tail -1)
+          echo "NDK utilisé : $NDK"
+          "$SDKM" "platforms;android-35" "build-tools;35.0.0" "$NDK" "cmake;3.22.1"
+          echo "NDK_VERSION=${NDK#ndk;}" >> "$GITHUB_ENV"
 
       - name: ncnn (Vulkan, Android)
         env:
