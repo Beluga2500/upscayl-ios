@@ -96,15 +96,35 @@ final class ViewModel: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var vm = ViewModel()
+
+    var body: some View {
+        TabView {
+            UpscaleView(vm: vm)
+                .tabItem { Label("Agrandir", systemImage: "wand.and.stars") }
+            AboutView()
+                .tabItem { Label("À propos", systemImage: "info.circle") }
+        }
+    }
+}
+
+struct UpscaleView: View {
+    @ObservedObject var vm: ViewModel
     @State private var pickerItem: PhotosPickerItem?
+
+    private let card = RoundedRectangle(cornerRadius: 28, style: .continuous)
+    private let panel = RoundedRectangle(cornerRadius: 24, style: .continuous)
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 14) {
-                preview
-                controls
+            ZStack {
+                GlassBackground()
+                VStack(spacing: 14) {
+                    preview
+                    controls
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
             }
-            .padding()
             .navigationTitle("Upscayl")
             .navigationBarTitleDisplayMode(.inline)
             .onChange(of: pickerItem) { item in
@@ -120,7 +140,7 @@ struct ContentView: View {
             } else if let s = vm.source {
                 Image(uiImage: s).resizable().scaledToFit()
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 10) {
                     Image(systemName: "photo.on.rectangle.angled").font(.system(size: 44))
                     Text("Choisis une photo à agrandir").font(.subheadline)
                 }
@@ -128,55 +148,57 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(.secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .clipShape(card)
+        .glass(card)
     }
 
     private var controls: some View {
         VStack(spacing: 12) {
-            PhotosPicker(selection: $pickerItem, matching: .images) {
-                Label("Choisir une photo", systemImage: "photo")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(vm.isRunning)
-
-            HStack {
-                Text("Modèle")
-                Spacer()
-                Picker("Modèle", selection: $vm.model) {
-                    ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
+            VStack(spacing: 12) {
+                HStack {
+                    Text("Modèle").font(.subheadline)
+                    Spacer()
+                    Picker("Modèle", selection: $vm.model) {
+                        ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.menu)
                 }
-                .pickerStyle(.menu)
-            }
-            .disabled(vm.isRunning)
+                Picker("Échelle", selection: $vm.scale) {
+                    ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
+                }
+                .pickerStyle(.segmented)
 
-            Picker("Échelle", selection: $vm.scale) {
-                ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .disabled(vm.isRunning)
-
-            if vm.isRunning {
-                VStack(spacing: 6) {
-                    ProgressView(value: vm.progress)
-                    HStack {
-                        Text("\(Int(vm.progress * 100)) % — garde l'app ouverte")
-                            .font(.footnote).foregroundColor(.secondary)
-                        Spacer()
-                        Button("Annuler", role: .destructive) { vm.cancel() }
-                            .font(.footnote)
+                if vm.isRunning {
+                    VStack(spacing: 6) {
+                        ProgressView(value: vm.progress)
+                        HStack {
+                            Text("\(Int(vm.progress * 100)) % — garde l'app ouverte")
+                                .font(.footnote).foregroundColor(.secondary)
+                            Spacer()
+                            Button("Annuler", role: .destructive) { vm.cancel() }
+                                .font(.footnote)
+                        }
                     }
                 }
-            } else {
+            }
+            .padding(14)
+            .glass(panel)
+
+            HStack(spacing: 10) {
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    Label("Photo", systemImage: "photo")
+                }
+                .buttonStyle(GlassButtonStyle())
+                .disabled(vm.isRunning)
+
                 Button {
                     vm.start()
                 } label: {
                     Label("Agrandir", systemImage: "wand.and.stars")
-                        .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(vm.source == nil)
+                .buttonStyle(GlassButtonStyle(prominent: true))
+                .disabled(vm.source == nil || vm.isRunning)
+                .opacity(vm.source == nil || vm.isRunning ? 0.5 : 1)
             }
 
             if let r = vm.result, let cg = r.cgImage {
@@ -185,16 +207,14 @@ struct ContentView: View {
                         Task { await vm.saveToPhotos() }
                     } label: {
                         Label("Photos", systemImage: "square.and.arrow.down")
-                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(GlassButtonStyle())
 
                     if let url = vm.exportURL {
                         ShareLink(item: url) {
                             Label("Partager", systemImage: "square.and.arrow.up")
-                                .frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(GlassButtonStyle())
                     }
                 }
                 Text("Résultat : \(cg.width) × \(cg.height) px")
