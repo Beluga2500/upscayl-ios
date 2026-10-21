@@ -1,0 +1,60 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: android
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: SDK, NDK, CMake
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses > /dev/null || true
+          "$SDKM" "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "cmake;3.22.1"
+
+      - name: ncnn (Vulkan, Android)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download -R Tencent/ncnn --pattern '*android-vulkan.zip' --output ncnn.zip
+          unzip -q ncnn.zip
+          mv ncnn-*-android-vulkan app/src/main/cpp/ncnn
+          ls app/src/main/cpp/ncnn
+
+      - name: Modèles Upscayl
+        run: |
+          git clone --depth 1 https://github.com/upscayl/upscayl.git /tmp/upscayl
+          mkdir -p app/src/main/assets/models
+          cp /tmp/upscayl/resources/models/*.param /tmp/upscayl/resources/models/*.bin app/src/main/assets/models/
+          ls -lh app/src/main/assets/models
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.9"
+
+      - name: Build
+        run: gradle :app:assembleRelease --no-daemon
+
+      - name: Renommer l'APK
+        run: cp app/build/outputs/apk/release/app-release.apk Upscayl-Android.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Upscayl-apk
+          path: android/Upscayl-Android.apk

@@ -76,7 +76,7 @@ struct AboutView: View {
                 .font(.subheadline).foregroundColor(.secondary)
             link("Upscayl (projet original)", "https://github.com/upscayl/upscayl")
             link("Real-ESRGAN", "https://github.com/xinntao/Real-ESRGAN")
-            link("Code source de ce fork", "https://github.com/Beluga2500/upscayl-ios")
+            link("Code source de ce fork", "https://github.com/akuuvfx/upscayl-ios")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

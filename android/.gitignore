@@ -1,0 +1,7 @@
+build/
+.gradle/
+local.properties
+app/src/main/cpp/ncnn/
+app/src/main/assets/models/
+*.iml
+.DS_Store

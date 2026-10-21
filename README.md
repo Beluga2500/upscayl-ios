@@ -1,17 +1,20 @@
-# Upscayl iOS (fork, Swift + Core ML)
+# Upscayl iOS + Android (forks natifs)
 
-Réécriture native iOS d'[Upscayl](https://github.com/upscayl/upscayl). Même famille de modèles (Real-ESRGAN), moteur Core ML au lieu de ncnn/Vulkan.
+Réécritures natives d'[Upscayl](https://github.com/upscayl/upscayl), faites par Akuu. Akuu ne détient aucun droit sur Upscayl, ses modèles ni son logo : tout appartient à leurs créateurs (voir l'onglet « À propos » des apps).
 
-## Utilisation
-1. Pousse ce dossier dans un repo GitHub (branche `main`).
-2. Onglet **Actions → Build IPA** (se lance au push, ou *Run workflow*).
-3. Télécharge l'artefact **Upscayl-ipa** (zip contenant `Upscayl.ipa`, non signé).
-4. Installe-le depuis Windows avec Sideloadly ou AltStore (iOS 16+).
+| Plateforme | Dossier | Moteur | Workflow | Artefact |
+|---|---|---|---|---|
+| iOS 16+ | racine (`Sources/`, `project.yml`) | Real-ESRGAN converti en Core ML | `build-ipa.yml` | `Upscayl-ipa` (.ipa non signé, à sideloader) |
+| Android 10+ (arm64) | `android/` | modèles ncnn d'Upscayl (Vulkan, repli CPU) | `build-apk.yml` | `Upscayl-apk` (.apk signé) |
 
-Sur Mac : `xcodegen generate` puis ouvrir `Upscayl.xcodeproj` (il faut d'abord lancer `python scripts/convert_models.py` et copier les `.mlmodelc` compilés dans `Models/` du bundle).
+Chaque workflow se lance au push (iOS ignore les changements dans `android/`, et inversement) ou à la main : onglet **Actions → Run workflow**.
+
+```
+gh run download -n Upscayl-ipa
+gh run download -n Upscayl-apk
+```
 
 ## Notes
-- Modèles : standard (photos), illustrations/anime, rapide. Échelles ×2/×3/×4 (×2 et ×3 = sortie ×4 réduite).
-- Limite mémoire : sortie ×4 plafonnée à 64 Mpx (`Upscaler.maxOutputPixels`) ; au-delà, la source est réduite.
+- ×2/×3 = sortie ×4 réduite. Sortie ×4 plafonnée à 64 Mpx.
 - Garde l'app au premier plan pendant le traitement.
-- Licence : AGPL-3.0 (code Upscayl) + Real-ESRGAN (BSD-3), voir `LICENSE` et `Real-ESRGAN_LICENSE.txt`.
+- Licences : AGPL-3.0 (Upscayl), Real-ESRGAN (BSD-3), ncnn (BSD-3). Voir `LICENSE` et `Real-ESRGAN_LICENSE.txt`.
