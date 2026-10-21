@@ -1,0 +1,65 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache des poids
+        uses: actions/cache@v4
+        with:
+          path: build/weights
+          key: weights-v1
+
+      - name: Conversion des modèles en Core ML
+        run: |
+          pip install torch==2.4.0 coremltools==8.0 "numpy<2" pillow
+          python scripts/convert_models.py
+
+      - name: Compilation des modèles (.mlmodelc)
+        run: |
+          mkdir -p build/compiled
+          for p in build/models/*.mlpackage; do
+            xcrun coremlcompiler compile "$p" build/compiled
+          done
+          ls build/compiled
+
+      - name: Génération du projet Xcode
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build (non signé)
+        run: |
+          xcodebuild \
+            -project Upscayl.xcodeproj -scheme Upscayl \
+            -configuration Release -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Création de l'.ipa
+        run: |
+          APP=build/dd/Build/Products/Release-iphoneos/Upscayl.app
+          mkdir -p "$APP/Models"
+          cp -R build/compiled/*.mlmodelc "$APP/Models/"
+          mkdir -p build/ipa/Payload
+          cp -R "$APP" build/ipa/Payload/
+          (cd build/ipa && zip -qry ../Upscayl.ipa Payload)
+          ls -lh build/Upscayl.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Upscayl-ipa
+          path: build/Upscayl.ipa
