@@ -15,13 +15,14 @@ final class ViewModel: ObservableObject {
 
     private let upscaler = Upscaler()
     private var task: Task<Void, Never>?
+    private var loc: Loc { Loc.shared }
 
     func load(_ item: PhotosPickerItem?) async {
         guard let item else { return }
         do {
             guard let data = try await item.loadTransferable(type: Data.self),
                   let img = UIImage(data: data) else {
-                message = "Image illisible."
+                message = loc.t("Image illisible.", "Unreadable image.")
                 return
             }
             source = img
@@ -52,7 +53,7 @@ final class ViewModel: ObservableObject {
                 if let png = out.image.pngData() { try? png.write(to: url) }
                 await self?.finish(out.image, preview: preview, url: url, downscaled: out.wasDownscaled)
             } catch is CancellationError {
-                await self?.fail("Annulé.")
+                await self?.fail(Loc.shared.t("Annulé.", "Cancelled."))
             } catch {
                 await self?.fail(error.localizedDescription)
             }
@@ -67,7 +68,9 @@ final class ViewModel: ObservableObject {
         exportURL = FileManager.default.fileExists(atPath: url.path) ? url : nil
         isRunning = false
         UIApplication.shared.isIdleTimerDisabled = false
-        message = downscaled ? "Image source réduite pour tenir en mémoire." : nil
+        message = downscaled
+            ? loc.t("Image source réduite pour tenir en mémoire.", "Source image downscaled to fit in memory.")
+            : nil
     }
 
     private func fail(_ text: String) {
@@ -80,14 +83,14 @@ final class ViewModel: ObservableObject {
         guard let url = exportURL else { return }
         let status = await PHPhotoLibrary.requestAuthorization(for: .addOnly)
         guard status == .authorized || status == .limited else {
-            message = "Accès à Photos refusé."
+            message = loc.t("Accès à Photos refusé.", "Photos access denied.")
             return
         }
         do {
             try await PHPhotoLibrary.shared().performChanges {
                 PHAssetCreationRequest.forAsset().addResource(with: .photo, fileURL: url, options: nil)
             }
-            message = "Enregistré dans Photos."
+            message = loc.t("Enregistré dans Photos.", "Saved to Photos.")
         } catch {
             message = error.localizedDescription
         }
@@ -96,19 +99,21 @@ final class ViewModel: ObservableObject {
 
 struct ContentView: View {
     @StateObject private var vm = ViewModel()
+    @EnvironmentObject private var loc: Loc
 
     var body: some View {
         TabView {
             UpscaleView(vm: vm)
-                .tabItem { Label("Agrandir", systemImage: "wand.and.stars") }
+                .tabItem { Label(loc.t("Agrandir", "Upscale"), systemImage: "wand.and.stars") }
             AboutView()
-                .tabItem { Label("À propos", systemImage: "info.circle") }
+                .tabItem { Label(loc.t("À propos", "About"), systemImage: "info.circle") }
         }
     }
 }
 
 struct UpscaleView: View {
     @ObservedObject var vm: ViewModel
+    @EnvironmentObject private var loc: Loc
     @State private var pickerItem: PhotosPickerItem?
 
     private let card = RoundedRectangle(cornerRadius: 28, style: .continuous)
@@ -142,7 +147,7 @@ struct UpscaleView: View {
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "photo.on.rectangle.angled").font(.system(size: 44))
-                    Text("Choisis une photo à agrandir").font(.subheadline)
+                    Text(loc.t("Choisis une photo à agrandir", "Pick a photo to upscale")).font(.subheadline)
                 }
                 .foregroundColor(.secondary)
             }
@@ -156,14 +161,14 @@ struct UpscaleView: View {
         VStack(spacing: 12) {
             VStack(spacing: 12) {
                 HStack {
-                    Text("Modèle").font(.subheadline)
+                    Text(loc.t("Modèle", "Model")).font(.subheadline)
                     Spacer()
-                    Picker("Modèle", selection: $vm.model) {
+                    Picker(loc.t("Modèle", "Model"), selection: $vm.model) {
                         ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
                     }
                     .pickerStyle(.menu)
                 }
-                Picker("Échelle", selection: $vm.scale) {
+                Picker(loc.t("Échelle", "Scale"), selection: $vm.scale) {
                     ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
                 }
                 .pickerStyle(.segmented)
@@ -172,10 +177,10 @@ struct UpscaleView: View {
                     VStack(spacing: 6) {
                         ProgressView(value: vm.progress)
                         HStack {
-                            Text("\(Int(vm.progress * 100)) % — garde l'app ouverte")
+                            Text("\(Int(vm.progress * 100)) % — \(loc.t("garde l'app ouverte", "keep the app open"))")
                                 .font(.footnote).foregroundColor(.secondary)
                             Spacer()
-                            Button("Annuler", role: .destructive) { vm.cancel() }
+                            Button(loc.t("Annuler", "Cancel"), role: .destructive) { vm.cancel() }
                                 .font(.footnote)
                         }
                     }
@@ -194,7 +199,7 @@ struct UpscaleView: View {
                 Button {
                     vm.start()
                 } label: {
-                    Label("Agrandir", systemImage: "wand.and.stars")
+                    Label(loc.t("Agrandir", "Upscale"), systemImage: "wand.and.stars")
                 }
                 .buttonStyle(GlassButtonStyle(prominent: true))
                 .disabled(vm.source == nil || vm.isRunning)
@@ -212,12 +217,12 @@ struct UpscaleView: View {
 
                     if let url = vm.exportURL {
                         ShareLink(item: url) {
-                            Label("Partager", systemImage: "square.and.arrow.up")
+                            Label(loc.t("Partager", "Share"), systemImage: "square.and.arrow.up")
                         }
                         .buttonStyle(GlassButtonStyle())
                     }
                 }
-                Text("Résultat : \(cg.width) × \(cg.height) px")
+                Text("\(loc.t("Résultat", "Result")) : \(cg.width) × \(cg.height) px")
                     .font(.footnote).foregroundColor(.secondary)
             }
 

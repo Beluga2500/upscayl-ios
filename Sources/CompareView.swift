@@ -4,6 +4,7 @@ struct CompareView: View {
     let before: UIImage
     let after: UIImage
     @State private var split: CGFloat = 0.5
+    @EnvironmentObject private var loc: Loc
 
     var body: some View {
         GeometryReader { geo in
@@ -32,9 +33,9 @@ struct CompareView: View {
                     .offset(x: w * split - 1)
 
                 HStack {
-                    tag("Avant")
+                    tag(loc.t("Avant", "Before"))
                     Spacer()
-                    tag("Après")
+                    tag(loc.t("Après", "After"))
                 }
                 .padding(8)
                 .frame(maxHeight: .infinity, alignment: .top)

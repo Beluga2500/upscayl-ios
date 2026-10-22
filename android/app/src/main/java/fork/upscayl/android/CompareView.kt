@@ -84,10 +84,10 @@ fun CompareView(before: Bitmap, after: Bitmap, modifier: Modifier = Modifier) {
         }
 
         GlassCard(Modifier.align(Alignment.TopStart).padding(8.dp), RoundedCornerShape(50)) {
-            Text("Avant", Modifier.padding(horizontal = 10.dp, vertical = 3.dp), fontSize = 11.sp)
+            Text(Loc.t("Avant", "Before"), Modifier.padding(horizontal = 10.dp, vertical = 3.dp), fontSize = 11.sp)
         }
         GlassCard(Modifier.align(Alignment.TopEnd).padding(8.dp), RoundedCornerShape(50)) {
-            Text("Après", Modifier.padding(horizontal = 10.dp, vertical = 3.dp), fontSize = 11.sp)
+            Text(Loc.t("Après", "After"), Modifier.padding(horizontal = 10.dp, vertical = 3.dp), fontSize = 11.sp)
         }
     }
 }

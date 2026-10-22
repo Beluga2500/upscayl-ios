@@ -11,9 +11,9 @@ enum UpscaleModel: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .standard: return "Standard (photos)"
-        case .digital: return "Illustrations / anime"
-        case .fast: return "Rapide (général)"
+        case .standard: return Loc.shared.t("Standard (photos)", "Standard (photos)")
+        case .digital: return Loc.shared.t("Illustrations / anime", "Illustrations / anime")
+        case .fast: return Loc.shared.t("Rapide (général)", "Fast (general)")
         }
     }
 }
@@ -26,10 +26,10 @@ enum UpscaleError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .modelMissing(let n): return "Modèle introuvable : \(n)"
-        case .badImage: return "Image illisible."
-        case .badOutput: return "Sortie du modèle invalide."
-        case .outOfMemory: return "Mémoire insuffisante."
+        case .modelMissing(let n): return Loc.shared.t("Modèle introuvable : \(n)", "Model not found: \(n)")
+        case .badImage: return Loc.shared.t("Image illisible.", "Unreadable image.")
+        case .badOutput: return Loc.shared.t("Sortie du modèle invalide.", "Invalid model output.")
+        case .outOfMemory: return Loc.shared.t("Mémoire insuffisante.", "Not enough memory.")
         }
     }
 }

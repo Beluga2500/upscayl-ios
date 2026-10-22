@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct AboutView: View {
+    @EnvironmentObject private var loc: Loc
     private let card = RoundedRectangle(cornerRadius: 24, style: .continuous)
 
     var body: some View {
@@ -10,10 +11,12 @@ struct AboutView: View {
                 ScrollView {
                     VStack(spacing: 14) {
                         header
+                        languageCard
                         forkCard
                         creditsCard
                         licenseCard
-                        Text("Projet non officiel, ni affilié ni approuvé par Upscayl.")
+                        Text(loc.t("Projet non officiel, ni affilié ni approuvé par Upscayl.",
+                                   "Unofficial project, not affiliated with or endorsed by Upscayl."))
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .multilineTextAlignment(.center)
@@ -22,7 +25,7 @@ struct AboutView: View {
                     .padding(16)
                 }
             }
-            .navigationTitle("À propos")
+            .navigationTitle(loc.t("À propos", "About"))
             .navigationBarTitleDisplayMode(.inline)
         }
     }
@@ -35,18 +38,37 @@ struct AboutView: View {
                 .frame(width: 84, height: 84)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             Text("Upscayl iOS").font(.title2.bold())
-            Text("Fork non officiel").font(.subheadline).foregroundColor(.secondary)
+            Text(loc.t("Fork non officiel", "Unofficial fork")).font(.subheadline).foregroundColor(.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .glass(card)
     }
 
+    private var languageCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(loc.t("Langue", "Language")).font(.headline)
+            Picker(loc.t("Langue", "Language"), selection: $loc.lang) {
+                ForEach(Lang.allCases) { Text($0.label).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            Text(loc.t("Toute l'application passe dans la langue choisie.",
+                       "The whole app switches to the chosen language."))
+                .font(.footnote).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .glass(card)
+    }
+
     private var forkCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Ce fork").font(.headline)
-            Text("Cette version iOS a été réalisée par **Akuu**.")
-            Text("Akuu ne détient **aucun droit** sur Upscayl, ses modèles, son logo ni son nom. Tout appartient à leurs créateurs et ayants droit listés ci-dessous.")
+            Text(loc.t("Ce fork", "This fork")).font(.headline)
+            Text(LocalizedStringKey(loc.t("Cette version iOS a été réalisée par **Akuu**.",
+                                          "This iOS version was made by **Akuu**.")))
+            Text(loc.t("Akuu ne détient **aucun droit** sur Upscayl, ses modèles, son logo ni son nom. Tout appartient à leurs créateurs et ayants droit listés ci-dessous.",
+                       "Akuu owns **no rights** to Upscayl, its models, its logo or its name. Everything belongs to their respective creators and rights holders listed below.")
+                .replacingOccurrences(of: "**", with: ""))
                 .foregroundColor(.secondary)
         }
         .font(.subheadline)
@@ -57,11 +79,13 @@ struct AboutView: View {
 
     private var creditsCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Appartient à").font(.headline)
-            row("Upscayl", "© 2023 Nayam Amarshe & TGS963 et contributeurs")
+            Text(loc.t("Appartient à", "Belongs to")).font(.headline)
+            row("Upscayl", loc.t("© 2023 Nayam Amarshe & TGS963 et contributeurs",
+                                 "© 2023 Nayam Amarshe & TGS963 and contributors"))
             row("Logo", "NicKoehler")
-            row("Real-ESRGAN (modèles)", "© 2021 Xintao Wang et al.")
-            row("Contributeurs Upscayl", "JanDeDinoMan, xanderfrangos, Fdawgs, keturn, aaronliu0130")
+            row(loc.t("Real-ESRGAN (modèles)", "Real-ESRGAN (models)"), "© 2021 Xintao Wang et al.")
+            row(loc.t("Contributeurs Upscayl", "Upscayl contributors"),
+                "JanDeDinoMan, xanderfrangos, Fdawgs, keturn, aaronliu0130")
             row("Core ML, SwiftUI, iOS", "Apple Inc.")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -71,12 +95,13 @@ struct AboutView: View {
 
     private var licenseCard: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text("Licences et code source").font(.headline)
-            Text("Logiciel libre sous licence AGPL-3.0 (Upscayl). Real-ESRGAN : BSD-3-Clause.")
+            Text(loc.t("Licences et code source", "Licenses and source code")).font(.headline)
+            Text(loc.t("Logiciel libre sous licence AGPL-3.0 (Upscayl). Real-ESRGAN : BSD-3-Clause.",
+                       "Free software under the AGPL-3.0 license (Upscayl). Real-ESRGAN: BSD-3-Clause."))
                 .font(.subheadline).foregroundColor(.secondary)
-            link("Upscayl (projet original)", "https://github.com/upscayl/upscayl")
+            link(loc.t("Upscayl (projet original)", "Upscayl (original project)"), "https://github.com/upscayl/upscayl")
             link("Real-ESRGAN", "https://github.com/xinntao/Real-ESRGAN")
-            link("Code source de ce fork", "https://github.com/akuuvfx/upscayl-ios")
+            link(loc.t("Code source de ce fork", "Source code of this fork"), "https://github.com/akuuvfx/upscayl-ios")
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)

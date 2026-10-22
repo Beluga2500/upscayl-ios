@@ -44,9 +44,9 @@ class UpscaleViewModel(private val app: Application) : AndroidViewModel(app) {
                 result = null
                 resultPreview = null
                 exportFile = null
-                message = if (downscaled) "Image source réduite pour tenir en mémoire." else null
+                message = if (downscaled) Loc.t("Image source réduite pour tenir en mémoire.", "Source image downscaled to fit in memory.") else null
             } catch (e: Throwable) {
-                message = "Image illisible."
+                message = Loc.t("Image illisible.", "Unreadable image.")
             }
         }
     }
@@ -69,11 +69,11 @@ class UpscaleViewModel(private val app: Application) : AndroidViewModel(app) {
                 result = res.bitmap
                 resultPreview = preview
                 exportFile = file
-                message = if (res.fellBack) "GPU indisponible : traitement sur le processeur." else null
+                message = if (res.fellBack) Loc.t("GPU indisponible : traitement sur le processeur.", "GPU unavailable: processed on the CPU.") else null
             } catch (e: CancellationException) {
-                message = "Annulé."
+                message = Loc.t("Annulé.", "Cancelled.")
             } catch (e: Throwable) {
-                message = e.message ?: "Erreur."
+                message = e.message ?: Loc.t("Erreur.", "Error.")
             } finally {
                 running = false
             }
@@ -97,7 +97,7 @@ class UpscaleViewModel(private val app: Application) : AndroidViewModel(app) {
                         put(MediaStore.Images.Media.IS_PENDING, 1)
                     }
                     val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-                        ?: throw IllegalStateException("Enregistrement impossible.")
+                        ?: throw IllegalStateException(Loc.t("Enregistrement impossible.", "Could not save."))
                     resolver.openOutputStream(uri)?.use { out ->
                         file.inputStream().use { it.copyTo(out) }
                     }
@@ -105,9 +105,9 @@ class UpscaleViewModel(private val app: Application) : AndroidViewModel(app) {
                     values.put(MediaStore.Images.Media.IS_PENDING, 0)
                     resolver.update(uri, values, null, null)
                 }
-                "Enregistré dans Photos (Pictures/Upscayl)."
+                Loc.t("Enregistré dans Photos (Pictures/Upscayl).", "Saved to Photos (Pictures/Upscayl).")
             } catch (e: Throwable) {
-                e.message ?: "Enregistrement impossible."
+                e.message ?: Loc.t("Enregistrement impossible.", "Could not save.")
             }
         }
     }

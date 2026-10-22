@@ -80,7 +80,7 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
                     Image(img, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                 }
                 else -> Text(
-                    "Choisis une photo à agrandir",
+                    Loc.t("Choisis une photo à agrandir", "Pick a photo to upscale"),
                     Modifier.align(Alignment.Center),
                     color = onBg.copy(alpha = 0.6f)
                 )
@@ -95,7 +95,7 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("Modèle", color = onBg)
+                    Text(Loc.t("Modèle", "Model"), color = onBg)
                     Box {
                         TextButton(onClick = { open = true }, enabled = !vm.running) {
                             Text(vm.model.title + "  ▾")
@@ -138,11 +138,11 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "${(vm.progress * 100).toInt()} % — garde l'app ouverte",
+                            Loc.t("${(vm.progress * 100).toInt()} % — garde l'app ouverte", "${(vm.progress * 100).toInt()} % — keep the app open"),
                             fontSize = 12.sp,
                             color = onBg.copy(alpha = 0.7f)
                         )
-                        TextButton(onClick = { vm.cancel() }) { Text("Annuler") }
+                        TextButton(onClick = { vm.cancel() }) { Text(Loc.t("Annuler", "Cancel")) }
                     }
                 }
             }
@@ -153,7 +153,7 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
                 picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             }
             GlassButton(
-                "Agrandir", Modifier.weight(1f), prominent = true,
+                Loc.t("Agrandir", "Upscale"), Modifier.weight(1f), prominent = true,
                 enabled = vm.source != null && !vm.running
             ) { vm.start() }
         }
@@ -161,8 +161,8 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
         val res = vm.result
         if (res != null) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GlassButton("Enregistrer", Modifier.weight(1f)) { vm.saveToGallery() }
-                GlassButton("Partager", Modifier.weight(1f), enabled = vm.exportFile != null) {
+                GlassButton(Loc.t("Enregistrer", "Save"), Modifier.weight(1f)) { vm.saveToGallery() }
+                GlassButton(Loc.t("Partager", "Share"), Modifier.weight(1f), enabled = vm.exportFile != null) {
                     vm.exportFile?.let { f ->
                         val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", f)
                         val send = Intent(Intent.ACTION_SEND).apply {
@@ -170,12 +170,12 @@ fun UpscaleScreen(vm: UpscaleViewModel, modifier: Modifier = Modifier) {
                             putExtra(Intent.EXTRA_STREAM, uri)
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
-                        context.startActivity(Intent.createChooser(send, "Partager"))
+                        context.startActivity(Intent.createChooser(send, Loc.t("Partager", "Share")))
                     }
                 }
             }
             Text(
-                "Résultat : ${res.width} × ${res.height} px",
+                Loc.t("Résultat : ${res.width} × ${res.height} px", "Result: ${res.width} × ${res.height} px"),
                 fontSize = 12.sp,
                 color = onBg.copy(alpha = 0.7f),
                 textAlign = TextAlign.Center,

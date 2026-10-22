@@ -29,6 +29,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Loc.init(applicationContext)
         enableEdgeToEdge()
         setContent {
             UpscaylTheme { Root() }
@@ -52,12 +53,12 @@ fun Root(vm: UpscaleViewModel = viewModel()) {
                         NavigationBarItem(
                             selected = tab == 0, onClick = { tab = 0 },
                             icon = { Icon(Icons.Default.Star, null) },
-                            label = { Text("Agrandir") }
+                            label = { Text(Loc.t("Agrandir", "Upscale")) }
                         )
                         NavigationBarItem(
                             selected = tab == 1, onClick = { tab = 1 },
                             icon = { Icon(Icons.Default.Info, null) },
-                            label = { Text("À propos") }
+                            label = { Text(Loc.t("À propos", "About")) }
                         )
                     }
                 }

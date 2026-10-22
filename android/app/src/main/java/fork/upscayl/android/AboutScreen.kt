@@ -56,24 +56,48 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                     Modifier.size(84.dp).clip(RoundedCornerShape(20.dp))
                 )
                 Text("Upscayl Android", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = onBg)
-                Text("Fork non officiel", color = muted)
+                Text(Loc.t("Fork non officiel", "Unofficial fork"), color = muted)
+            }
+        }
+
+        // Langue
+        GlassCard(Modifier.fillMaxWidth(), card) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(Loc.t("Langue", "Language"), fontWeight = FontWeight.Bold, color = onBg)
+                val langs = Lang.values().toList()
+                Segmented(
+                    options = langs.map { it.label },
+                    selected = langs.indexOf(Loc.lang),
+                    enabled = true
+                ) { Loc.set(langs[it]) }
+                Text(
+                    Loc.t(
+                        "Toute l'application passe dans la langue choisie.",
+                        "The whole app switches to the chosen language."
+                    ),
+                    color = muted, fontSize = 13.sp
+                )
             }
         }
 
         GlassCard(Modifier.fillMaxWidth(), card) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Ce fork", fontWeight = FontWeight.Bold, color = onBg)
+                Text(Loc.t("Ce fork", "This fork"), fontWeight = FontWeight.Bold, color = onBg)
                 Text(
                     buildAnnotatedString {
-                        append("Cette version Android a été réalisée par ")
+                        append(Loc.t("Cette version Android a été réalisée par ", "This Android version was made by "))
                         withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append("Akuu") }
                         append(".")
                     },
                     color = onBg
                 )
                 Text(
-                    "Akuu ne détient aucun droit sur Upscayl, ses modèles, son logo ni son nom. " +
-                        "Tout appartient à leurs créateurs et ayants droit listés ci-dessous.",
+                    Loc.t(
+                        "Akuu ne détient aucun droit sur Upscayl, ses modèles, son logo ni son nom. " +
+                            "Tout appartient à leurs créateurs et ayants droit listés ci-dessous.",
+                        "Akuu owns no rights to Upscayl, its models, its logo or its name. " +
+                            "Everything belongs to their respective creators and rights holders listed below."
+                    ),
                     color = muted
                 )
             }
@@ -81,12 +105,15 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 
         GlassCard(Modifier.fillMaxWidth(), card) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Appartient à", fontWeight = FontWeight.Bold, color = onBg)
-                Credit("Upscayl", "© 2023 Nayam Amarshe & TGS963 et contributeurs")
+                Text(Loc.t("Appartient à", "Belongs to"), fontWeight = FontWeight.Bold, color = onBg)
+                Credit("Upscayl", Loc.t("© 2023 Nayam Amarshe & TGS963 et contributeurs", "© 2023 Nayam Amarshe & TGS963 and contributors"))
                 Credit("Logo", "NicKoehler")
-                Credit("Real-ESRGAN (modèles)", "© 2021 Xintao Wang et al.")
-                Credit("Modèles communautaires", "Helaman (HFA2k), Foolhardy (Remacri), Kim2091 (Ultrasharp, Ultramix Balanced)")
-                Credit("Contributeurs Upscayl", "JanDeDinoMan, xanderfrangos, Fdawgs, keturn, aaronliu0130")
+                Credit(Loc.t("Real-ESRGAN (modèles)", "Real-ESRGAN (models)"), "© 2021 Xintao Wang et al.")
+                Credit(
+                    Loc.t("Modèles communautaires", "Community models"),
+                    "Helaman (HFA2k), Foolhardy (Remacri), Kim2091 (Ultrasharp, Ultramix Balanced)"
+                )
+                Credit(Loc.t("Contributeurs Upscayl", "Upscayl contributors"), "JanDeDinoMan, xanderfrangos, Fdawgs, keturn, aaronliu0130")
                 Credit("ncnn", "© Tencent")
                 Credit("Android, Jetpack Compose", "Google LLC")
             }
@@ -94,19 +121,29 @@ fun AboutScreen(modifier: Modifier = Modifier) {
 
         GlassCard(Modifier.fillMaxWidth(), card) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Licences et code source", fontWeight = FontWeight.Bold, color = onBg)
+                Text(Loc.t("Licences et code source", "Licenses and source code"), fontWeight = FontWeight.Bold, color = onBg)
                 Text(
-                    "Logiciel libre sous licence AGPL-3.0 (Upscayl). Real-ESRGAN : BSD-3-Clause. ncnn : BSD-3-Clause.",
+                    Loc.t(
+                        "Logiciel libre sous licence AGPL-3.0 (Upscayl). Real-ESRGAN : BSD-3-Clause. ncnn : BSD-3-Clause.",
+                        "Free software under the AGPL-3.0 license (Upscayl). Real-ESRGAN: BSD-3-Clause. ncnn: BSD-3-Clause."
+                    ),
                     color = muted, fontSize = 14.sp
                 )
-                TextButton(onClick = { uri.openUri("https://github.com/upscayl/upscayl") }) { Text("Upscayl (projet original)") }
+                TextButton(onClick = { uri.openUri("https://github.com/upscayl/upscayl") }) {
+                    Text(Loc.t("Upscayl (projet original)", "Upscayl (original project)"))
+                }
                 TextButton(onClick = { uri.openUri("https://github.com/xinntao/Real-ESRGAN") }) { Text("Real-ESRGAN") }
-                TextButton(onClick = { uri.openUri("https://github.com/akuuvfx/upscayl-ios") }) { Text("Code source de ce fork") }
+                TextButton(onClick = { uri.openUri("https://github.com/akuuvfx/upscayl-ios") }) {
+                    Text(Loc.t("Code source de ce fork", "Source code of this fork"))
+                }
             }
         }
 
         Text(
-            "Projet non officiel, ni affilié ni approuvé par Upscayl.",
+            Loc.t(
+                "Projet non officiel, ni affilié ni approuvé par Upscayl.",
+                "Unofficial project, not affiliated with or endorsed by Upscayl."
+            ),
             fontSize = 12.sp, color = muted,
             textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
         )

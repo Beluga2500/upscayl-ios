@@ -20,7 +20,7 @@ targets:
         CFBundleDisplayName: Upscayl
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
-        NSPhotoLibraryAddUsageDescription: "Enregistrer les images agrandies dans Photos."
+        NSPhotoLibraryAddUsageDescription: "Enregistrer les images agrandies dans Photos. / Save upscaled images to Photos."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft

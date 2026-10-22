@@ -27,14 +27,16 @@ object Native {
     external fun process(input: Bitmap, output: Bitmap, scale: Int, tile: Int, cb: ProgressCallback): Int
 }
 
-enum class UpscaleModel(val id: String, val title: String) {
-    STANDARD("upscayl-standard-4x", "Upscayl Standard"),
-    LITE("upscayl-lite-4x", "Upscayl Lite (rapide)"),
-    HIGH_FIDELITY("high-fidelity-4x", "Haute fidélité"),
-    REMACRI("remacri-4x", "Remacri"),
-    ULTRAMIX("ultramix-balanced-4x", "Ultramix équilibré"),
-    ULTRASHARP("ultrasharp-4x", "Ultrasharp"),
-    DIGITAL_ART("digital-art-4x", "Art numérique")
+enum class UpscaleModel(val id: String, private val fr: String, private val en: String) {
+    STANDARD("upscayl-standard-4x", "Upscayl Standard", "Upscayl Standard"),
+    LITE("upscayl-lite-4x", "Upscayl Lite (rapide)", "Upscayl Lite (fast)"),
+    HIGH_FIDELITY("high-fidelity-4x", "Haute fidélité", "High Fidelity"),
+    REMACRI("remacri-4x", "Remacri", "Remacri"),
+    ULTRAMIX("ultramix-balanced-4x", "Ultramix équilibré", "Ultramix Balanced"),
+    ULTRASHARP("ultrasharp-4x", "Ultrasharp", "Ultrasharp"),
+    DIGITAL_ART("digital-art-4x", "Art numérique", "Digital Art");
+
+    val title: String get() = Loc.t(fr, en)
 }
 
 class UpscaleResult(val bitmap: Bitmap, val usedGpu: Boolean, val fellBack: Boolean)
@@ -81,14 +83,14 @@ object Engine {
         }
 
         val mode = Native.load(context.assets, model.id, useGpu)
-        if (mode < 0) throw IllegalStateException("Modèle introuvable : ${model.title}")
+        if (mode < 0) throw IllegalStateException(Loc.t("Modèle introuvable : ${model.title}", "Model not found: ${model.title}"))
         var gpu = mode == 1
         var fellBack = false
 
         val out = try {
             Bitmap.createBitmap(input.width * SCALE, input.height * SCALE, Bitmap.Config.ARGB_8888)
         } catch (e: OutOfMemoryError) {
-            throw IllegalStateException("Mémoire insuffisante pour cette image.")
+            throw IllegalStateException(Loc.t("Mémoire insuffisante pour cette image.", "Not enough memory for this image."))
         }
 
         var r = Native.process(input, out, SCALE, if (gpu) 192 else 96, cb)
@@ -98,7 +100,7 @@ object Engine {
             gpu = false
             onProgress(0f)
             if (Native.load(context.assets, model.id, false) < 0) {
-                throw IllegalStateException("Modèle introuvable : ${model.title}")
+                throw IllegalStateException(Loc.t("Modèle introuvable : ${model.title}", "Model not found: ${model.title}"))
             }
             r = Native.process(input, out, SCALE, 96, cb)
         }
@@ -106,8 +108,8 @@ object Engine {
         when (r) {
             0 -> Unit
             -4 -> throw CancellationException("Annulé")
-            -2 -> throw IllegalStateException("Erreur pendant l'inférence.")
-            else -> throw IllegalStateException("Erreur du moteur ($r).")
+            -2 -> throw IllegalStateException(Loc.t("Erreur pendant l'inférence.", "Inference error."))
+            else -> throw IllegalStateException(Loc.t("Erreur du moteur ($r).", "Engine error ($r)."))
         }
 
         val result = if (targetScale == SCALE) {
