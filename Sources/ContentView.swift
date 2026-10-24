@@ -119,6 +119,8 @@ struct ContentView: View {
                 }
                 .frame(width: w * 2, alignment: .leading)
                 .offset(x: -progress * w)
+                .frame(width: w, alignment: .leading)
+                .clipped()
                 .simultaneousGesture(pagerGesture(width: w))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
