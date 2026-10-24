@@ -101,13 +101,72 @@ struct ContentView: View {
     @StateObject private var vm = ViewModel()
     @EnvironmentObject private var loc: Loc
 
+    @State private var page = 0
+    @State private var dragX: CGFloat = 0
+    @State private var scrub: CGFloat?
+
     var body: some View {
-        TabView {
-            UpscaleView(vm: vm)
-                .tabItem { Label(loc.t("Agrandir", "Upscale"), systemImage: "wand.and.stars") }
-            AboutView()
-                .tabItem { Label(loc.t("À propos", "About"), systemImage: "info.circle") }
+        GeometryReader { geo in
+            let w = geo.size.width
+            let progress = currentProgress(width: w)
+
+            ZStack {
+                GlassBackground()
+
+                HStack(spacing: 0) {
+                    UpscaleView(vm: vm).frame(width: w)
+                    AboutView().frame(width: w)
+                }
+                .frame(width: w * 2, alignment: .leading)
+                .offset(x: -progress * w)
+                .simultaneousGesture(pagerGesture(width: w))
+            }
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                GlassTabBar(
+                    items: [
+                        (icon: "wand.and.stars", title: loc.t("Agrandir", "Upscale")),
+                        (icon: "info.circle", title: loc.t("À propos", "About"))
+                    ],
+                    progress: progress,
+                    lifted: scrub != nil,
+                    onScrub: { v in
+                        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) { scrub = v }
+                    },
+                    onSettle: { target in settle(to: target) }
+                )
+                .padding(.horizontal, 36)
+                .padding(.bottom, 6)
+            }
         }
+    }
+
+    private func currentProgress(width w: CGFloat) -> CGFloat {
+        if let s = scrub { return s }
+        guard w > 0 else { return CGFloat(page) }
+        return min(max(CGFloat(page) - dragX / w, 0), 1)
+    }
+
+    private func settle(to target: Int) {
+        let t = min(max(target, 0), 1)
+        if t != page { UISelectionFeedbackGenerator().selectionChanged() }
+        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
+            page = t
+            dragX = 0
+            scrub = nil
+        }
+    }
+
+    private func pagerGesture(width w: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 16)
+            .onChanged { v in
+                guard abs(v.translation.width) > abs(v.translation.height) else { return }
+                dragX = v.translation.width
+            }
+            .onEnded { v in
+                guard w > 0 else { return }
+                let projected = CGFloat(page) - v.predictedEndTranslation.width / w
+                settle(to: projected > 0.5 ? 1 : 0)
+            }
     }
 }
 
@@ -116,26 +175,30 @@ struct UpscaleView: View {
     @EnvironmentObject private var loc: Loc
     @State private var pickerItem: PhotosPickerItem?
 
-    private let card = RoundedRectangle(cornerRadius: 28, style: .continuous)
-    private let panel = RoundedRectangle(cornerRadius: 24, style: .continuous)
+    private let card = RoundedRectangle(cornerRadius: 32, style: .continuous)
+    private let panel = RoundedRectangle(cornerRadius: 26, style: .continuous)
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                GlassBackground()
-                VStack(spacing: 14) {
-                    preview
-                    controls
-                }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
-            }
-            .navigationTitle("Upscayl")
-            .navigationBarTitleDisplayMode(.inline)
-            .onChange(of: pickerItem) { item in
-                Task { await vm.load(item) }
-            }
+        VStack(spacing: 16) {
+            header
+            preview
+            controls
         }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 12)
+        .onChange(of: pickerItem) { item in
+            Task { await vm.load(item) }
+        }
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text("Upscayl").font(.largeTitle.bold())
+            Text(loc.t("Agrandis tes images avec l'IA", "Enhance your images with AI"))
+                .font(.subheadline).foregroundColor(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var preview: some View {
@@ -145,11 +208,17 @@ struct UpscaleView: View {
             } else if let s = vm.source {
                 Image(uiImage: s).resizable().scaledToFit()
             } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "photo.on.rectangle.angled").font(.system(size: 44))
-                    Text(loc.t("Choisis une photo à agrandir", "Pick a photo to upscale")).font(.subheadline)
+                PhotosPicker(selection: $pickerItem, matching: .images) {
+                    VStack(spacing: 10) {
+                        Image(systemName: "photo.badge.plus")
+                            .font(.system(size: 40, weight: .light))
+                        Text(loc.t("Ajouter une photo", "Add a photo")).font(.headline)
+                        Text(loc.t("Touche pour choisir une image", "Tap to choose an image"))
+                            .font(.footnote).foregroundColor(.secondary)
+                    }
+                    .foregroundColor(.primary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .foregroundColor(.secondary)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -159,23 +228,44 @@ struct UpscaleView: View {
 
     private var controls: some View {
         VStack(spacing: 12) {
-            VStack(spacing: 12) {
+            VStack(spacing: 0) {
                 HStack {
-                    Text(loc.t("Modèle", "Model")).font(.subheadline)
+                    Text(loc.t("Modèle", "Model"))
                     Spacer()
-                    Picker(loc.t("Modèle", "Model"), selection: $vm.model) {
-                        ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
+                    Menu {
+                        Picker(loc.t("Modèle", "Model"), selection: $vm.model) {
+                            ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(vm.model.title)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(Theme.accent)
                     }
-                    .pickerStyle(.menu)
+                    .disabled(vm.isRunning)
                 }
-                Picker(loc.t("Échelle", "Scale"), selection: $vm.scale) {
-                    ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
+                .padding(.vertical, 13)
+
+                Divider()
+
+                HStack {
+                    Text(loc.t("Échelle", "Scale"))
+                    Spacer()
+                    Picker(loc.t("Échelle", "Scale"), selection: $vm.scale) {
+                        ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 168)
+                    .disabled(vm.isRunning)
                 }
-                .pickerStyle(.segmented)
+                .padding(.vertical, 9)
 
                 if vm.isRunning {
+                    Divider()
                     VStack(spacing: 6) {
-                        ProgressView(value: vm.progress)
+                        ProgressView(value: vm.progress).tint(Theme.accent)
                         HStack {
                             Text("\(Int(vm.progress * 100)) % — \(loc.t("garde l'app ouverte", "keep the app open"))")
                                 .font(.footnote).foregroundColor(.secondary)
@@ -184,34 +274,38 @@ struct UpscaleView: View {
                                 .font(.footnote)
                         }
                     }
+                    .padding(.vertical, 12)
                 }
             }
-            .padding(14)
+            .font(.subheadline)
+            .padding(.horizontal, 16)
             .glass(panel)
 
-            HStack(spacing: 10) {
+            HStack(spacing: 12) {
                 PhotosPicker(selection: $pickerItem, matching: .images) {
-                    Label("Photo", systemImage: "photo")
+                    Image(systemName: "photo")
+                        .font(.system(size: 20, weight: .medium))
+                        .frame(width: 56, height: 56)
                 }
-                .buttonStyle(GlassButtonStyle())
+                .buttonStyle(GlassCircleStyle())
                 .disabled(vm.isRunning)
 
                 Button {
                     vm.start()
                 } label: {
-                    Label(loc.t("Agrandir", "Upscale"), systemImage: "wand.and.stars")
+                    Text(loc.t("Agrandir", "Upscale"))
                 }
                 .buttonStyle(GlassButtonStyle(prominent: true))
                 .disabled(vm.source == nil || vm.isRunning)
-                .opacity(vm.source == nil || vm.isRunning ? 0.5 : 1)
+                .opacity(vm.source == nil || vm.isRunning ? 0.45 : 1)
             }
 
             if let r = vm.result, let cg = r.cgImage {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     Button {
                         Task { await vm.saveToPhotos() }
                     } label: {
-                        Label("Photos", systemImage: "square.and.arrow.down")
+                        Label(loc.t("Enregistrer", "Save"), systemImage: "square.and.arrow.down")
                     }
                     .buttonStyle(GlassButtonStyle())
 

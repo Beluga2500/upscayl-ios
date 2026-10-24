@@ -2,31 +2,29 @@ import SwiftUI
 
 struct AboutView: View {
     @EnvironmentObject private var loc: Loc
-    private let card = RoundedRectangle(cornerRadius: 24, style: .continuous)
+    private let card = RoundedRectangle(cornerRadius: 26, style: .continuous)
 
     var body: some View {
-        NavigationStack {
-            ZStack {
-                GlassBackground()
-                ScrollView {
-                    VStack(spacing: 14) {
-                        header
-                        languageCard
-                        forkCard
-                        creditsCard
-                        licenseCard
-                        Text(loc.t("Projet non officiel, ni affilié ni approuvé par Upscayl.",
-                                   "Unofficial project, not affiliated with or endorsed by Upscayl."))
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.top, 4)
-                    }
-                    .padding(16)
-                }
+        ScrollView(showsIndicators: false) {
+            VStack(spacing: 14) {
+                Text(loc.t("À propos", "About"))
+                    .font(.largeTitle.bold())
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                header
+                languageCard
+                forkCard
+                creditsCard
+                licenseCard
+                Text(loc.t("Projet non officiel, ni affilié ni approuvé par Upscayl.",
+                           "Unofficial project, not affiliated with or endorsed by Upscayl."))
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 4)
+                    .padding(.bottom, 12)
             }
-            .navigationTitle(loc.t("À propos", "About"))
-            .navigationBarTitleDisplayMode(.inline)
+            .padding(.horizontal, 20)
+            .padding(.top, 8)
         }
     }
 
