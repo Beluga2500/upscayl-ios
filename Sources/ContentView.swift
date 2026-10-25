@@ -46,6 +46,7 @@ final class ViewModel: ObservableObject {
             customWidth: (prefs.useCustomWidth && prefs.customWidth > 0) ? prefs.customWidth : nil,
             tile: prefs.tileSize,
             tta: prefs.tta,
+            double: prefs.doubleUpscayl,
             compute: prefs.compute)
         let upscaler = self.upscaler
         let model = self.model
@@ -333,6 +334,13 @@ struct UpscaleView: View {
                         .foregroundColor(theme.accent)
                     }
                     .disabled(vm.isRunning)
+                    if settings.p.doubleUpscayl {
+                        Text("×2 IA")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(theme.accent.opacity(0.18), in: Capsule())
+                            .foregroundColor(theme.accent)
+                    }
                     if settings.p.tta {
                         Text("TTA")
                             .font(.caption2.weight(.bold))

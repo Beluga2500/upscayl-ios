@@ -41,6 +41,7 @@ struct SettingsView: View {
                 themeSection
                 formatSection
                 scaleSection
+                doubleSection
                 widthSection
                 compressionSection
                 tileSection
@@ -128,8 +129,11 @@ struct SettingsView: View {
     private var scaleSection: some View {
         SettingsSection(
             title: "\(loc.t("Échelle de l'image", "Image scale")) (\(settings.p.scale)×)",
-            footer: loc.t("Au-delà de 4×, l'image est seulement redimensionnée, sans IA.",
-                          "Anything above 4× only resizes the image and does not use AI upscaling.")
+            footer: settings.p.doubleUpscayl
+                ? loc.t("Avec Double Upscayl, toutes les échelles jusqu'à 16× utilisent l'IA.",
+                        "With Double Upscayl, every scale up to 16× uses AI upscaling.")
+                : loc.t("Au-delà de 4×, l'image est seulement redimensionnée, sans IA (sauf avec Double Upscayl).",
+                        "Anything above 4× only resizes the image and does not use AI upscaling (except with Double Upscayl).")
         ) {
             Slider(
                 value: Binding(
@@ -137,6 +141,16 @@ struct SettingsView: View {
                     set: { settings.p.scale = Int($0.rounded()) }),
                 in: 1...16, step: 1)
             .tint(theme.accent)
+        }
+    }
+
+    private var doubleSection: some View {
+        SettingsSection(
+            title: "Double Upscayl",
+            footer: loc.t("Agrandit l'image deux fois avec l'IA pour une meilleure qualité (jusqu'à ×16). Le traitement est nettement plus long et demande plus de mémoire.",
+                          "Upscales the image twice with AI for higher quality (up to ×16). Processing takes much longer and uses more memory.")
+        ) {
+            Toggle(loc.t("Activer Double Upscayl", "Enable Double Upscayl"), isOn: $settings.p.doubleUpscayl)
         }
     }
 

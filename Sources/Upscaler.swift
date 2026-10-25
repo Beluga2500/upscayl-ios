@@ -80,6 +80,7 @@ struct UpscaleOptions {
     var customWidth: Int?
     var tile = 0            // 0 = auto
     var tta = false
+    var double = false      // Double Upscayl : deux passes d'IA
     var compute: ComputeChoice = .auto
 }
 
@@ -157,12 +158,9 @@ final class Upscaler {
                  model: UpscaleModel,
                  options o: UpscaleOptions,
                  progress: (Double) -> Void) throws -> UpscaleOutput {
-        let k = Self.modelScale, pad = Self.pad
+        let k = Self.modelScale
         let loaded = try loadModel(model, compute: o.compute)
-        let net = loaded.model
         let T = Self.pickTile(requested: o.tile, tiles: loaded.tiles)
-        let step = T - 2 * pad
-        let N = T * k
 
         guard var cg = Self.flattened(input) else { throw UpscaleError.badImage }
 
@@ -196,6 +194,40 @@ final class Upscaler {
             clamped = true
         }
 
+        // 1re passe (x4)
+        var result = try runPass(cg, net: loaded.model, tile: T, tta: o.tta) { p in
+            progress(o.double ? p * 0.5 : p)
+        }
+
+        // 2e passe : le résultat est ramené à (cible / 4), puis ré-agrandi x4 par l'IA.
+        // À l'échelle x16 c'est exactement un double passage complet ; en dessous, la mémoire reste bornée.
+        if o.double {
+            let iw = max(1, (tw + k - 1) / k), ih = max(1, (th + k - 1) / k)
+            guard let mid = Self.resize(result, to: iw, ih) else { throw UpscaleError.outOfMemory }
+            result = mid   // libère la sortie de la 1re passe
+            result = try runPass(mid, net: loaded.model, tile: T, tta: o.tta) { p in
+                progress(0.5 + p * 0.5)
+            }
+        }
+
+        if result.width == tw && result.height == th {
+            return UpscaleOutput(image: UIImage(cgImage: result), wasDownscaled: downscaled, wasClamped: clamped)
+        }
+        guard let resized = Self.resize(result, to: tw, th) else { throw UpscaleError.outOfMemory }
+        return UpscaleOutput(image: UIImage(cgImage: resized), wasDownscaled: downscaled, wasClamped: clamped)
+    }
+
+    /// Une passe d'IA x4 sur toute l'image (par tuiles).
+    private func runPass(_ cg: CGImage,
+                         net: MLModel,
+                         tile T: Int,
+                         tta: Bool,
+                         progress: (Double) -> Void) throws -> CGImage {
+        let k = Self.modelScale, pad = Self.pad
+        let step = T - 2 * pad
+        let N = T * k
+        let W = cg.width, H = cg.height
+
         // Pixels source (BGRA)
         let srcStride = W * 4
         let srcPtr = UnsafeMutablePointer<UInt8>.allocate(capacity: srcStride * H)
@@ -225,8 +257,8 @@ final class Upscaler {
         guard let inBuf = pbOpt else { throw UpscaleError.outOfMemory }
 
         var base = [UInt8](repeating: 0, count: T * T * 4)
-        let transforms = o.tta ? Array(0..<8) : [0]
-        var acc = [UInt16](repeating: 0, count: o.tta ? N * N * 3 : 0)
+        let transforms = tta ? Array(0..<8) : [0]
+        var acc = [UInt16](repeating: 0, count: tta ? N * N * 3 : 0)
 
         let tilesX = (W + step - 1) / step
         let tilesY = (H + step - 1) / step
@@ -280,7 +312,7 @@ final class Upscaler {
                         }
                     }
 
-                    if !o.tta {
+                    if !tta {
                         // 2a. Inférence directe
                         let outBuf = try run(0)
                         CVPixelBufferLockBaseAddress(outBuf, .readOnly)
@@ -351,12 +383,7 @@ final class Upscaler {
                                  bitmapInfo: CGBitmapInfo(rawValue: Self.bitmapInfo),
                                  provider: dp, decode: nil, shouldInterpolate: true,
                                  intent: .defaultIntent) else { throw UpscaleError.badOutput }
-
-        if tw == outW && th == outH {
-            return UpscaleOutput(image: UIImage(cgImage: full), wasDownscaled: downscaled, wasClamped: clamped)
-        }
-        guard let resized = Self.resize(full, to: tw, th) else { throw UpscaleError.outOfMemory }
-        return UpscaleOutput(image: UIImage(cgImage: resized), wasDownscaled: downscaled, wasClamped: clamped)
+        return full
     }
 
     // MARK: - Helpers

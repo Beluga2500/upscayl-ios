@@ -36,6 +36,10 @@ struct AboutView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
             Text("Upscayl iOS").font(.title2.bold())
             Text(loc.t("Fork non officiel", "Unofficial fork")).font(.subheadline).foregroundColor(.secondary)
+            Text("\(loc.t("Version", "Version")) \(AppInfo.version)")
+                .font(.caption.weight(.semibold))
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(.ultraThinMaterial, in: Capsule())
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
