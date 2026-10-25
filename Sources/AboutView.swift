@@ -11,7 +11,6 @@ struct AboutView: View {
                     .font(.largeTitle.bold())
                     .frame(maxWidth: .infinity, alignment: .leading)
                 header
-                languageCard
                 forkCard
                 creditsCard
                 licenseCard
@@ -40,22 +39,6 @@ struct AboutView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
-        .glass(card)
-    }
-
-    private var languageCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(loc.t("Langue", "Language")).font(.headline)
-            Picker(loc.t("Langue", "Language"), selection: $loc.lang) {
-                ForEach(Lang.allCases) { Text($0.label).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            Text(loc.t("Toute l'application passe dans la langue choisie.",
-                       "The whole app switches to the chosen language."))
-                .font(.footnote).foregroundColor(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
         .glass(card)
     }
 

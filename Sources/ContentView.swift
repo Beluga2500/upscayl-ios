@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import ImageIO
 
 @MainActor
 final class ViewModel: ObservableObject {
@@ -7,8 +8,8 @@ final class ViewModel: ObservableObject {
     @Published var result: UIImage?
     @Published var resultPreview: UIImage?
     @Published var exportURL: URL?
-    @Published var model: UpscaleModel = .standard
-    @Published var scale = 4
+    @Published var model: UpscaleModel = UpscaleModel.available.contains(.standard)
+        ? .standard : (UpscaleModel.available.first ?? .standard)
     @Published var progress = 0.0
     @Published var isRunning = false
     @Published var message: String?
@@ -38,45 +39,62 @@ final class ViewModel: ObservableObject {
         message = nil; progress = 0; isRunning = true
         UIApplication.shared.isIdleTimerDisabled = true
 
+        let prefs = AppSettings.shared.p
+        if prefs.notifications { Notifier.requestAuthorization() }
+        let opts = UpscaleOptions(
+            scale: prefs.scale,
+            customWidth: (prefs.useCustomWidth && prefs.customWidth > 0) ? prefs.customWidth : nil,
+            tile: prefs.tileSize,
+            tta: prefs.tta,
+            compute: prefs.compute)
         let upscaler = self.upscaler
         let model = self.model
-        let scale = self.scale
 
         task = Task.detached(priority: .userInitiated) { [weak self] in
             do {
-                let out = try upscaler.upscale(src, model: model, targetScale: scale) { p in
+                let out = try upscaler.upscale(src, model: model, options: opts) { p in
                     Task { @MainActor in self?.progress = p }
                 }
-                let preview = out.image.preview(maxSide: 2048)
-                let url = FileManager.default.temporaryDirectory
-                    .appendingPathComponent("Upscayl_x\(scale)_\(Int(Date().timeIntervalSince1970)).png")
-                if let png = out.image.pngData() { try? png.write(to: url) }
-                await self?.finish(out.image, preview: preview, url: url, downscaled: out.wasDownscaled)
+                let preview = out.image.preview(maxSide: 4096)
+                let url = ViewModel.export(out.image, prefs: prefs)
+                await self?.finish(out, preview: preview, url: url, prefs: prefs)
             } catch is CancellationError {
-                await self?.fail(Loc.shared.t("Annulé.", "Cancelled."))
+                await self?.fail(Loc.shared.t("Annulé.", "Cancelled."), notify: false)
             } catch {
-                await self?.fail(error.localizedDescription)
+                await self?.fail(error.localizedDescription, notify: prefs.notifications)
             }
         }
     }
 
     func cancel() { task?.cancel() }
 
-    private func finish(_ image: UIImage, preview: UIImage, url: URL, downscaled: Bool) {
-        result = image
+    private func finish(_ out: UpscaleOutput, preview: UIImage, url: URL?, prefs: Prefs) {
+        result = out.image
         resultPreview = preview
-        exportURL = FileManager.default.fileExists(atPath: url.path) ? url : nil
+        exportURL = url
         isRunning = false
         UIApplication.shared.isIdleTimerDisabled = false
-        message = downscaled
-            ? loc.t("Image source réduite pour tenir en mémoire.", "Source image downscaled to fit in memory.")
-            : nil
+
+        var notes: [String] = []
+        if out.wasDownscaled {
+            notes.append(loc.t("Image source réduite pour tenir en mémoire.", "Source image downscaled to fit in memory."))
+        }
+        if out.wasClamped {
+            notes.append(loc.t("Taille de sortie réduite (limite mémoire).", "Output size reduced (memory limit)."))
+        }
+        message = notes.isEmpty ? nil : notes.joined(separator: " ")
+
+        if prefs.notifications {
+            Notifier.post("Upscayl", loc.t("Agrandissement terminé.", "Upscale finished."))
+        }
+        if prefs.autoSave { Task { await saveToPhotos() } }
     }
 
-    private func fail(_ text: String) {
+    private func fail(_ text: String, notify: Bool) {
         isRunning = false
         UIApplication.shared.isIdleTimerDisabled = false
         message = text
+        if notify { Notifier.post("Upscayl", text) }
     }
 
     func saveToPhotos() async {
@@ -95,6 +113,46 @@ final class ViewModel: ObservableObject {
             message = error.localizedDescription
         }
     }
+
+    // MARK: - Export
+
+    nonisolated static func export(_ image: UIImage, prefs: Prefs) -> URL? {
+        let dir = FileManager.default.temporaryDirectory
+        if let old = try? FileManager.default.contentsOfDirectory(atPath: dir.path) {
+            for f in old where f.hasPrefix("Upscayl_") {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(f))
+            }
+        }
+        let q = max(0.01, 1.0 - Double(prefs.compression) / 100.0)
+        var ext = prefs.format.ext
+        var data: Data?
+        switch prefs.format {
+        case .png:
+            data = image.pngData()
+        case .jpg:
+            data = image.jpegData(compressionQuality: q)
+        case .heic:
+            data = heicData(image, quality: q)
+            if data == nil {
+                data = image.jpegData(compressionQuality: q)
+                ext = "jpg"
+            }
+        }
+        guard let d = data else { return nil }
+        let url = dir.appendingPathComponent("Upscayl_\(Int(Date().timeIntervalSince1970)).\(ext)")
+        do { try d.write(to: url) } catch { return nil }
+        return url
+    }
+
+    nonisolated static func heicData(_ image: UIImage, quality: Double) -> Data? {
+        guard let cg = image.cgImage,
+              let buf = CFDataCreateMutable(nil, 0),
+              let dest = CGImageDestinationCreateWithData(buf, "public.heic" as CFString, 1, nil) else { return nil }
+        let opts = [kCGImageDestinationLossyCompressionQuality: quality] as CFDictionary
+        CGImageDestinationAddImage(dest, cg, opts)
+        guard CGImageDestinationFinalize(dest) else { return nil }
+        return buf as Data
+    }
 }
 
 struct ContentView: View {
@@ -102,32 +160,33 @@ struct ContentView: View {
     @EnvironmentObject private var loc: Loc
 
     @State private var page = 0
-    @State private var dragX: CGFloat = 0
     @State private var scrub: CGFloat?
 
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width
-            let progress = currentProgress(width: w)
+            let progress = currentProgress()
 
             ZStack {
                 GlassBackground()
 
+                // Les pages ne se déplacent qu'avec la barre d'onglets (aucun balayage sur le contenu)
                 HStack(spacing: 0) {
                     UpscaleView(vm: vm).frame(width: w)
                     AboutView().frame(width: w)
+                    SettingsView().frame(width: w)
                 }
-                .frame(width: w * 2, alignment: .leading)
+                .frame(width: w * 3, alignment: .leading)
                 .offset(x: -progress * w)
                 .frame(width: w, alignment: .leading)
                 .clipped()
-                .simultaneousGesture(pagerGesture(width: w))
             }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 GlassTabBar(
                     items: [
                         (icon: "wand.and.stars", title: loc.t("Agrandir", "Upscale")),
-                        (icon: "info.circle", title: loc.t("À propos", "About"))
+                        (icon: "info.circle", title: loc.t("À propos", "About")),
+                        (icon: "gearshape", title: loc.t("Paramètres", "Settings"))
                     ],
                     progress: progress,
                     lifted: scrub != nil,
@@ -136,45 +195,30 @@ struct ContentView: View {
                     },
                     onSettle: { target in settle(to: target) }
                 )
-                .padding(.horizontal, 36)
+                .padding(.horizontal, 24)
                 .padding(.bottom, 6)
             }
         }
     }
 
-    private func currentProgress(width w: CGFloat) -> CGFloat {
-        if let s = scrub { return s }
-        guard w > 0 else { return CGFloat(page) }
-        return min(max(CGFloat(page) - dragX / w, 0), 1)
+    private func currentProgress() -> CGFloat {
+        scrub ?? CGFloat(page)
     }
 
     private func settle(to target: Int) {
-        let t = min(max(target, 0), 1)
+        let t = min(max(target, 0), 2)
         if t != page { UISelectionFeedbackGenerator().selectionChanged() }
         withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
             page = t
-            dragX = 0
             scrub = nil
         }
-    }
-
-    private func pagerGesture(width w: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 16)
-            .onChanged { v in
-                guard abs(v.translation.width) > abs(v.translation.height) else { return }
-                dragX = v.translation.width
-            }
-            .onEnded { v in
-                guard w > 0 else { return }
-                let projected = CGFloat(page) - v.predictedEndTranslation.width / w
-                settle(to: projected > 0.5 ? 1 : 0)
-            }
     }
 }
 
 struct UpscaleView: View {
     @ObservedObject var vm: ViewModel
     @EnvironmentObject private var loc: Loc
+    @EnvironmentObject private var settings: AppSettings
     @State private var pickerItem: PhotosPickerItem?
 
     private let card = RoundedRectangle(cornerRadius: 32, style: .continuous)
@@ -228,6 +272,12 @@ struct UpscaleView: View {
         .glass(card)
     }
 
+    private var scaleLabel: String {
+        let p = settings.p
+        if p.useCustomWidth && p.customWidth > 0 { return "\(p.customWidth) px" }
+        return "×\(p.scale)"
+    }
+
     private var controls: some View {
         VStack(spacing: 12) {
             VStack(spacing: 0) {
@@ -236,7 +286,7 @@ struct UpscaleView: View {
                     Spacer()
                     Menu {
                         Picker(loc.t("Modèle", "Model"), selection: $vm.model) {
-                            ForEach(UpscaleModel.allCases) { Text($0.title).tag($0) }
+                            ForEach(UpscaleModel.available) { Text($0.title).tag($0) }
                         }
                     } label: {
                         HStack(spacing: 5) {
@@ -248,21 +298,28 @@ struct UpscaleView: View {
                     }
                     .disabled(vm.isRunning)
                 }
-                .padding(.vertical, 13)
+                .padding(.top, 13)
+
+                Text(vm.model.detail)
+                    .font(.footnote).foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.top, 4).padding(.bottom, 12)
 
                 Divider()
 
                 HStack {
                     Text(loc.t("Échelle", "Scale"))
                     Spacer()
-                    Picker(loc.t("Échelle", "Scale"), selection: $vm.scale) {
-                        ForEach([2, 3, 4], id: \.self) { Text("×\($0)").tag($0) }
+                    Text(scaleLabel).foregroundColor(.secondary)
+                    if settings.p.tta {
+                        Text("TTA")
+                            .font(.caption2.weight(.bold))
+                            .padding(.horizontal, 6).padding(.vertical, 2)
+                            .background(Theme.accent.opacity(0.18), in: Capsule())
+                            .foregroundColor(Theme.accent)
                     }
-                    .pickerStyle(.segmented)
-                    .frame(width: 168)
-                    .disabled(vm.isRunning)
                 }
-                .padding(.vertical, 9)
+                .padding(.vertical, 12)
 
                 if vm.isRunning {
                     Divider()

@@ -75,7 +75,7 @@ Portage réalisé par **Akuu**, qui ne détient aucun droit sur le projet origin
 
 | Plateforme | Dossier | Moteur | Workflow |
 |---|---|---|---|
-| iOS | racine (`Sources/`, `project.yml`) | Real-ESRGAN converti en Core ML | `build-ipa.yml` |
+| iOS | racine (`Sources/`, `project.yml`) | modèles Upscayl (ncnn) convertis en Core ML | `build-ipa.yml` |
 | Android | `android/` | modèles ncnn d'Upscayl (Vulkan, repli CPU) | `build-apk.yml` |
 
 Chaque `git push` lance le build correspondant sur GitHub Actions et remplace le fichier de la release `latest`.

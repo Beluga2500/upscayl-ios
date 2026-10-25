@@ -1,20 +1,39 @@
-"""Télécharge les poids Real-ESRGAN officiels et les convertit en Core ML.
-Sortie : build/models/<nom>.mlpackage  (entrée 128x128 -> sortie 512x512, image RGB)
+"""Convertit les modèles ncnn d'Upscayl (mêmes poids que sur PC) en Core ML.
+
+Entrée  : $UPSCAYL_MODELS (dossier .param/.bin), défaut build/upscayl/resources/models
+Sortie  : build/models/<nom>.mlpackage  (entrée image RGB, sortie x4)
+Tailles de tuile : 64/96/128/192/256 (formes énumérées) ; repli sur 128 fixe si la conversion échoue.
 """
+import math
 import os
 import sys
-import urllib.request
+import traceback
 
 import coremltools as ct
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-TILE = 128
+sys.path.insert(0, os.path.dirname(__file__))
+from ncnn_loader import load_ncnn  # noqa: E402
+
+MODELS_DIR = os.environ.get("UPSCAYL_MODELS", "build/upscayl/resources/models")
 OUT = "build/models"
-WEIGHTS = "build/weights"
+TILES = [64, 96, 128, 192, 256]
+DEFAULT_TILE = 128
+NAMES = [
+    "upscayl-standard-4x",
+    "upscayl-lite-4x",
+    "high-fidelity-4x",
+    "digital-art-4x",
+    "remacri-4x",
+    "ultramix-balanced-4x",
+    "ultrasharp-4x",
+]
 
 
+# ---------------- Architectures ----------------
 class ResidualDenseBlock(nn.Module):
     def __init__(self, nf=64, gc=32):
         super().__init__()
@@ -42,8 +61,7 @@ class RRDB(nn.Module):
         self.rdb3 = ResidualDenseBlock(nf, gc)
 
     def forward(self, x):
-        out = self.rdb3(self.rdb2(self.rdb1(x)))
-        return out * 0.2 + x
+        return self.rdb3(self.rdb2(self.rdb1(x))) * 0.2 + x
 
 
 class RRDBNet(nn.Module):
@@ -96,61 +114,128 @@ class Wrapper(nn.Module):
         return torch.clamp(self.net(x), 0.0, 1.0) * 255.0
 
 
-MODELS = {
-    "RealESRGAN_x4plus": (
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
-        lambda: RRDBNet(nb=23),
-    ),
-    "RealESRGAN_x4plus_anime_6B": (
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
-        lambda: RRDBNet(nb=6),
-    ),
-    "realesr-general-x4v3": (
-        "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-general-x4v3.pth",
-        lambda: SRVGGNetCompact(),
-    ),
-}
+# ---------------- Chargement des poids ncnn ----------------
+def _set(module, w, b):
+    assert tuple(module.weight.shape) == tuple(w.shape), (tuple(module.weight.shape), w.shape)
+    module.weight.data = torch.from_numpy(np.ascontiguousarray(w))
+    module.bias.data = torch.from_numpy(np.ascontiguousarray(b))
 
 
-def main():
-    os.makedirs(OUT, exist_ok=True)
-    os.makedirs(WEIGHTS, exist_ok=True)
-    for name, (url, factory) in MODELS.items():
-        pth = os.path.join(WEIGHTS, name + ".pth")
-        if not os.path.exists(pth):
-            print(f"Téléchargement {name}…")
-            urllib.request.urlretrieve(url, pth)
+def build_from_ncnn(prefix):
+    convs, prelus = load_ncnn(prefix)
+    if prelus:  # SRVGGNetCompact
+        nc = len(prelus) - 1
+        net = SRVGGNetCompact(nc=nc)
+        mods = [m for m in net.body if isinstance(m, nn.Conv2d)]
+        pre = [m for m in net.body if isinstance(m, nn.PReLU)]
+        assert len(mods) == len(convs) and len(pre) == len(prelus)
+        for m, (w, b) in zip(mods, convs):
+            _set(m, w, b)
+        for m, s in zip(pre, prelus):
+            m.weight.data = torch.from_numpy(s.copy())
+        return net.eval()
 
-        ckpt = torch.load(pth, map_location="cpu")
-        state = ckpt.get("params_ema") or ckpt.get("params") or ckpt
-        net = factory()
-        net.load_state_dict(state, strict=True)
-        net.eval()
+    nb = (len(convs) - 6) // 15
+    assert 15 * nb + 6 == len(convs), f"nombre de convolutions inattendu : {len(convs)}"
+    net = RRDBNet(nb=nb)
+    mods = [net.conv_first]
+    for blk in net.body:
+        for rdb in (blk.rdb1, blk.rdb2, blk.rdb3):
+            mods += [rdb.conv1, rdb.conv2, rdb.conv3, rdb.conv4, rdb.conv5]
+    mods += [net.conv_body, net.conv_up1, net.conv_up2, net.conv_hr, net.conv_last]
+    for m, (w, b) in zip(mods, convs):
+        _set(m, w, b)
+    return net.eval()
 
-        model = Wrapper(net).eval()
-        example = torch.rand(1, 3, TILE, TILE)
-        with torch.no_grad():
-            traced = torch.jit.trace(model, example)
 
-        mlmodel = ct.convert(
+# ---------------- Contrôles de cohérence ----------------
+def test_image(n):
+    yy, xx = torch.meshgrid(torch.linspace(0, 1, n), torch.linspace(0, 1, n), indexing="ij")
+    img = torch.stack([
+        0.5 + 0.3 * torch.sin(6 * xx + 3 * yy),
+        0.5 + 0.3 * torch.cos(5 * yy - 2 * xx),
+        0.2 + 0.6 * xx * yy + 0.1 * torch.sin(9 * yy),
+    ]).unsqueeze(0)
+    return img.clamp(0, 1)
+
+
+def psnr(a, b):
+    mse = float(np.mean((a - b) ** 2))
+    return 10 * math.log10(1.0 / max(mse, 1e-12))
+
+
+def check_torch(net):
+    img = test_image(48)
+    with torch.no_grad():
+        out = net(img).clamp(0, 1)
+    ref = F.interpolate(img, scale_factor=4, mode="bicubic", align_corners=False).clamp(0, 1)
+    p = psnr(out.numpy(), ref.numpy())
+    print(f"  cohérence PyTorch : PSNR vs bicubique = {p:.1f} dB")
+    assert p > 20, "les poids ne produisent pas une image cohérente"
+
+
+def to_coreml(net):
+    wrapper = Wrapper(net).eval()
+    example = torch.rand(1, 3, DEFAULT_TILE, DEFAULT_TILE)
+    with torch.no_grad():
+        traced = torch.jit.trace(wrapper, example)
+
+    def convert(shape):
+        return ct.convert(
             traced,
-            inputs=[ct.ImageType(name="input", shape=(1, 3, TILE, TILE),
-                                 scale=1 / 255.0, color_layout=ct.colorlayout.RGB)],
+            inputs=[ct.ImageType(name="input", shape=shape, scale=1 / 255.0,
+                                 color_layout=ct.colorlayout.RGB)],
             outputs=[ct.ImageType(name="output", color_layout=ct.colorlayout.RGB)],
             convert_to="mlprogram",
             minimum_deployment_target=ct.target.iOS16,
             compute_precision=ct.precision.FLOAT16,
         )
-        dest = os.path.join(OUT, name + ".mlpackage")
-        mlmodel.save(dest)
-        print("OK", dest)
 
-        # Test rapide (macOS uniquement)
-        if sys.platform == "darwin":
-            from PIL import Image
-            res = mlmodel.predict({"input": Image.new("RGB", (TILE, TILE), (128, 128, 128))})
-            assert res["output"].size == (TILE * 4, TILE * 4), res["output"].size
-            print("  test prédiction OK")
+    try:
+        shapes = ct.EnumeratedShapes(
+            shapes=[(1, 3, t, t) for t in TILES], default=(1, 3, DEFAULT_TILE, DEFAULT_TILE))
+        return convert(shapes), True
+    except Exception as e:  # repli : tuile fixe
+        print("  formes énumérées impossibles, repli sur 128 fixe :", repr(e)[:200])
+        return convert((1, 3, DEFAULT_TILE, DEFAULT_TILE)), False
+
+
+def check_coreml(ml, enumerated):
+    if sys.platform != "darwin":
+        return
+    from PIL import Image
+
+    for t in ([128, 192] if enumerated else [128]):
+        arr = (test_image(t)[0].permute(1, 2, 0).numpy() * 255).astype(np.uint8)
+        res = ml.predict({"input": Image.fromarray(arr)})
+        out = res["output"]
+        assert out.size == (4 * t, 4 * t), out.size
+        o = np.asarray(out.convert("RGB")).astype(np.float32) / 255.0
+        ref = np.asarray(Image.fromarray(arr).resize((4 * t, 4 * t), Image.BICUBIC)).astype(np.float32) / 255.0
+        p = psnr(o, ref)
+        print(f"  cohérence Core ML ({t} px) : PSNR = {p:.1f} dB")
+        assert np.isfinite(o).all() and p > 18, "sortie Core ML incohérente"
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    ok, failed = [], []
+    for name in NAMES:
+        print(f"== {name}")
+        try:
+            net = build_from_ncnn(os.path.join(MODELS_DIR, name))
+            check_torch(net)
+            ml, enumerated = to_coreml(net)
+            check_coreml(ml, enumerated)
+            ml.save(os.path.join(OUT, name + ".mlpackage"))
+            ok.append(name)
+            print("  OK", "(tuiles variables)" if enumerated else "(tuile 128 fixe)")
+        except Exception:
+            traceback.print_exc()
+            failed.append(name)
+    print("\nRésumé : OK =", ok, "| ÉCHEC =", failed)
+    if not ok:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

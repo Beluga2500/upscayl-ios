@@ -21,13 +21,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Cache des poids
-        uses: actions/cache@v4
-        with:
-          path: build/weights
-          key: weights-v1
+      - name: Modèles Upscayl (ncnn)
+        run: git clone --depth 1 https://github.com/upscayl/upscayl.git build/upscayl
 
       - name: Conversion des modèles en Core ML
+        env:
+          UPSCAYL_MODELS: build/upscayl/resources/models
         run: |
           pip install torch==2.4.0 coremltools==8.0 "numpy<2" pillow
           python scripts/convert_models.py
