@@ -8,6 +8,20 @@ struct GlassTabBar: View {
     var onScrub: (CGFloat) -> Void
     var onSettle: (Int) -> Void
 
+    @Environment(\.theme) private var theme
+
+    init(items: [(icon: String, title: String)],
+         progress: CGFloat,
+         lifted: Bool,
+         onScrub: @escaping (CGFloat) -> Void,
+         onSettle: @escaping (Int) -> Void) {
+        self.items = items
+        self.progress = progress
+        self.lifted = lifted
+        self.onScrub = onScrub
+        self.onSettle = onSettle
+    }
+
     private let pad: CGFloat = 5
     private let height: CGFloat = 62
 
@@ -30,7 +44,7 @@ struct GlassTabBar: View {
                             Text(items[i].title)
                                 .font(.system(size: 11, weight: .medium))
                         }
-                        .foregroundColor(abs(progress - CGFloat(i)) < 0.5 ? Theme.accent : .secondary)
+                        .foregroundColor(abs(progress - CGFloat(i)) < 0.5 ? theme.accent : .secondary)
                         .frame(width: itemW, height: height)
                     }
                 }

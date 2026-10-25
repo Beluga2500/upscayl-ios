@@ -1,21 +1,18 @@
 import SwiftUI
 
-enum Theme {
-    static let accent = Color(red: 0.04, green: 0.52, blue: 1.0)
-}
-
 /// Fond statique : deux halos très doux, aucun calcul par frame.
 struct GlassBackground: View {
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.theme) private var theme
 
     var body: some View {
         ZStack {
             Color(.systemBackground)
             RadialGradient(
-                colors: [Theme.accent.opacity(scheme == .dark ? 0.34 : 0.20), .clear],
+                colors: [theme.accent.opacity(scheme == .dark ? 0.34 : 0.20), .clear],
                 center: .topLeading, startRadius: 0, endRadius: 430)
             RadialGradient(
-                colors: [Color(red: 0.35, green: 0.78, blue: 0.98).opacity(scheme == .dark ? 0.20 : 0.16), .clear],
+                colors: [theme.halo.opacity(scheme == .dark ? 0.20 : 0.16), .clear],
                 center: .bottomTrailing, startRadius: 0, endRadius: 470)
         }
         .ignoresSafeArea()
@@ -74,6 +71,9 @@ struct GlassPill: View {
 
 struct GlassButtonStyle: ButtonStyle {
     var prominent = false
+    @Environment(\.theme) private var theme
+
+    init(prominent: Bool = false) { self.prominent = prominent }
 
     func makeBody(configuration: Configuration) -> some View {
         let label = configuration.label
@@ -89,13 +89,13 @@ struct GlassButtonStyle: ButtonStyle {
                 .foregroundColor(.white)
                 .background(
                     Capsule()
-                        .fill(Theme.accent)
+                        .fill(theme.accent)
                         .overlay(
                             Capsule().fill(
                                 LinearGradient(colors: [Color.white.opacity(0.22), .clear],
                                                startPoint: .top, endPoint: .center))
                         )
-                        .shadow(color: Theme.accent.opacity(0.35), radius: 12, y: 5)
+                        .shadow(color: theme.accent.opacity(0.35), radius: 12, y: 5)
                 )
         } else {
             label

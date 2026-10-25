@@ -173,8 +173,8 @@ struct ContentView: View {
                 // Les pages ne se déplacent qu'avec la barre d'onglets (aucun balayage sur le contenu)
                 HStack(spacing: 0) {
                     UpscaleView(vm: vm).frame(width: w)
-                    AboutView().frame(width: w)
                     SettingsView().frame(width: w)
+                    AboutView().frame(width: w)
                 }
                 .frame(width: w * 3, alignment: .leading)
                 .offset(x: -progress * w)
@@ -185,8 +185,8 @@ struct ContentView: View {
                 GlassTabBar(
                     items: [
                         (icon: "wand.and.stars", title: loc.t("Agrandir", "Upscale")),
-                        (icon: "info.circle", title: loc.t("À propos", "About")),
-                        (icon: "gearshape", title: loc.t("Paramètres", "Settings"))
+                        (icon: "gearshape", title: loc.t("Paramètres", "Settings")),
+                        (icon: "info.circle", title: loc.t("À propos", "About"))
                     ],
                     progress: progress,
                     lifted: scrub != nil,
@@ -219,6 +219,7 @@ struct UpscaleView: View {
     @ObservedObject var vm: ViewModel
     @EnvironmentObject private var loc: Loc
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.theme) private var theme
     @State private var pickerItem: PhotosPickerItem?
 
     private let card = RoundedRectangle(cornerRadius: 32, style: .continuous)
@@ -272,6 +273,15 @@ struct UpscaleView: View {
         .glass(card)
     }
 
+    private var scaleBinding: Binding<Int> {
+        Binding(
+            get: { settings.p.scale },
+            set: { v in
+                settings.p.scale = v
+                settings.p.useCustomWidth = false
+            })
+    }
+
     private var scaleLabel: String {
         let p = settings.p
         if p.useCustomWidth && p.customWidth > 0 { return "\(p.customWidth) px" }
@@ -294,7 +304,7 @@ struct UpscaleView: View {
                             Image(systemName: "chevron.up.chevron.down")
                                 .font(.system(size: 11, weight: .semibold))
                         }
-                        .foregroundColor(Theme.accent)
+                        .foregroundColor(theme.accent)
                     }
                     .disabled(vm.isRunning)
                 }
@@ -310,13 +320,25 @@ struct UpscaleView: View {
                 HStack {
                     Text(loc.t("Échelle", "Scale"))
                     Spacer()
-                    Text(scaleLabel).foregroundColor(.secondary)
+                    Menu {
+                        Picker(loc.t("Échelle", "Scale"), selection: scaleBinding) {
+                            ForEach(1...16, id: \.self) { Text("×\($0)").tag($0) }
+                        }
+                    } label: {
+                        HStack(spacing: 5) {
+                            Text(scaleLabel)
+                            Image(systemName: "chevron.up.chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundColor(theme.accent)
+                    }
+                    .disabled(vm.isRunning)
                     if settings.p.tta {
                         Text("TTA")
                             .font(.caption2.weight(.bold))
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Theme.accent.opacity(0.18), in: Capsule())
-                            .foregroundColor(Theme.accent)
+                            .background(theme.accent.opacity(0.18), in: Capsule())
+                            .foregroundColor(theme.accent)
                     }
                 }
                 .padding(.vertical, 12)
@@ -324,7 +346,7 @@ struct UpscaleView: View {
                 if vm.isRunning {
                     Divider()
                     VStack(spacing: 6) {
-                        ProgressView(value: vm.progress).tint(Theme.accent)
+                        ProgressView(value: vm.progress).tint(theme.accent)
                         HStack {
                             Text("\(Int(vm.progress * 100)) % — \(loc.t("garde l'app ouverte", "keep the app open"))")
                                 .font(.footnote).foregroundColor(.secondary)

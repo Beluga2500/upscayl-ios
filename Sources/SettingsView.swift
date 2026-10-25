@@ -27,6 +27,7 @@ private struct SettingsSection<Content: View>: View {
 struct SettingsView: View {
     @EnvironmentObject private var loc: Loc
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.theme) private var theme
     @State private var confirmReset = false
 
     var body: some View {
@@ -37,6 +38,7 @@ struct SettingsView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 languageSection
+                themeSection
                 formatSection
                 scaleSection
                 widthSection
@@ -77,6 +79,39 @@ struct SettingsView: View {
         }
     }
 
+    private var themeSection: some View {
+        SettingsSection(
+            title: loc.t("Thème", "Theme"),
+            footer: settings.p.theme.title
+        ) {
+            HStack(spacing: 14) {
+                ForEach(AppTheme.allCases) { t in
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) { settings.p.theme = t }
+                    } label: {
+                        Circle()
+                            .fill(LinearGradient(colors: [t.accent, t.halo],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .frame(width: 34, height: 34)
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.primary.opacity(settings.p.theme == t ? 0.85 : 0), lineWidth: 2)
+                                    .padding(-5)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 4)
+
+            Picker(loc.t("Apparence", "Appearance"), selection: $settings.p.appearance) {
+                ForEach(AppearanceMode.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+        }
+    }
+
     private var formatSection: some View {
         SettingsSection(
             title: loc.t("Enregistrer l'image en", "Save image as"),
@@ -101,7 +136,7 @@ struct SettingsView: View {
                     get: { Double(settings.p.scale) },
                     set: { settings.p.scale = Int($0.rounded()) }),
                 in: 1...16, step: 1)
-            .tint(Theme.accent)
+            .tint(theme.accent)
         }
     }
 
@@ -135,7 +170,7 @@ struct SettingsView: View {
                     get: { Double(settings.p.compression) },
                     set: { settings.p.compression = Int($0.rounded()) }),
                 in: 0...100, step: 1)
-            .tint(Theme.accent)
+            .tint(theme.accent)
         }
     }
 
@@ -179,7 +214,7 @@ struct SettingsView: View {
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 11, weight: .semibold))
                     }
-                    .foregroundColor(Theme.accent)
+                    .foregroundColor(theme.accent)
                 }
             }
         }

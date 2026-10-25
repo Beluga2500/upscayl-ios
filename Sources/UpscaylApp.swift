@@ -10,6 +10,8 @@ struct UpscaylApp: App {
             ContentView()
                 .environmentObject(loc)
                 .environmentObject(settings)
+                .environment(\.theme, settings.p.theme)
+                .preferredColorScheme(settings.p.appearance.scheme)
         }
     }
 }

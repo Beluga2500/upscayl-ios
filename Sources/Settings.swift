@@ -32,6 +32,79 @@ enum ComputeChoice: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum AppTheme: String, Codable, CaseIterable, Identifiable {
+    case ocean, violet, forest, sunset, rose, graphite
+    var id: String { rawValue }
+
+    var accent: Color {
+        switch self {
+        case .ocean: return Color(red: 0.04, green: 0.52, blue: 1.00)
+        case .violet: return Color(red: 0.56, green: 0.36, blue: 0.96)
+        case .forest: return Color(red: 0.16, green: 0.72, blue: 0.38)
+        case .sunset: return Color(red: 1.00, green: 0.50, blue: 0.14)
+        case .rose: return Color(red: 1.00, green: 0.30, blue: 0.55)
+        case .graphite: return Color(red: 0.50, green: 0.54, blue: 0.62)
+        }
+    }
+
+    /// Second halo du fond.
+    var halo: Color {
+        switch self {
+        case .ocean: return Color(red: 0.35, green: 0.78, blue: 0.98)
+        case .violet: return Color(red: 0.86, green: 0.46, blue: 0.95)
+        case .forest: return Color(red: 0.30, green: 0.85, blue: 0.75)
+        case .sunset: return Color(red: 1.00, green: 0.30, blue: 0.45)
+        case .rose: return Color(red: 1.00, green: 0.62, blue: 0.76)
+        case .graphite: return Color(red: 0.36, green: 0.40, blue: 0.48)
+        }
+    }
+
+    var title: String {
+        let l = Loc.shared
+        switch self {
+        case .ocean: return l.t("Océan", "Ocean")
+        case .violet: return "Violet"
+        case .forest: return l.t("Forêt", "Forest")
+        case .sunset: return l.t("Coucher de soleil", "Sunset")
+        case .rose: return "Rose"
+        case .graphite: return "Graphite"
+        }
+    }
+}
+
+enum AppearanceMode: String, Codable, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+
+    var scheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+
+    var title: String {
+        let l = Loc.shared
+        switch self {
+        case .system: return l.t("Système", "System")
+        case .light: return l.t("Clair", "Light")
+        case .dark: return l.t("Sombre", "Dark")
+        }
+    }
+}
+
+private struct ThemeKey: EnvironmentKey {
+    static let defaultValue: AppTheme = .ocean
+}
+
+extension EnvironmentValues {
+    var theme: AppTheme {
+        get { self[ThemeKey.self] }
+        set { self[ThemeKey.self] = newValue }
+    }
+}
+
 struct Prefs: Codable, Equatable {
     var format: OutputFormat = .png
     var scale: Int = 4
@@ -43,6 +116,27 @@ struct Prefs: Codable, Equatable {
     var compute: ComputeChoice = .auto
     var autoSave = false
     var notifications = false
+    var theme: AppTheme = .ocean
+    var appearance: AppearanceMode = .system
+
+    init() {}
+
+    // Décodage tolérant : une clé absente (ancienne version) prend sa valeur par défaut.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        format = try c.decodeIfPresent(OutputFormat.self, forKey: .format) ?? .png
+        scale = try c.decodeIfPresent(Int.self, forKey: .scale) ?? 4
+        useCustomWidth = try c.decodeIfPresent(Bool.self, forKey: .useCustomWidth) ?? false
+        customWidth = try c.decodeIfPresent(Int.self, forKey: .customWidth) ?? 0
+        compression = try c.decodeIfPresent(Int.self, forKey: .compression) ?? 0
+        tileSize = try c.decodeIfPresent(Int.self, forKey: .tileSize) ?? 0
+        tta = try c.decodeIfPresent(Bool.self, forKey: .tta) ?? false
+        compute = try c.decodeIfPresent(ComputeChoice.self, forKey: .compute) ?? .auto
+        autoSave = try c.decodeIfPresent(Bool.self, forKey: .autoSave) ?? false
+        notifications = try c.decodeIfPresent(Bool.self, forKey: .notifications) ?? false
+        theme = try c.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .ocean
+        appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? .system
+    }
 
     func sanitized() -> Prefs {
         var p = self
