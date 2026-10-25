@@ -19,12 +19,13 @@ Numérotation : **0.A.B**, où **A** = nombre de mises à jour de fonctionnalit�
 
 Numéro final affiché dans l'app : **0.7.2** (la version de chaque ligne = fonctionnalités cumulées . correctifs cumulés).
 
-## Android : 0.2.1 (2 mises à jour de fonctionnalités, 1 correctif)
+## Android : 0.3.1 (3 mises à jour de fonctionnalités, 1 correctif)
 
 | Version | Type | Contenu |
 |---|---|---|
 | 0.1.0 | fonctionnalité | Première app Android (modèles ncnn d'Upscayl, GPU Vulkan) |
 | 0.1.1 | correctif | Compilation : NDK récent pour ncnn |
 | 0.2.1 | fonctionnalité | Choix de la langue français / anglais |
+| 0.3.1 | fonctionnalité | Même fonctions que sur iOS : onglet Paramètres (langue, thèmes, format, échelle, Double Upscayl, largeur, compression, tuile, TTA, GPU, enregistrement auto, notifications, réinitialisation), échelle sur l'écran principal, zoom sur la comparaison, barre d'onglets en verre glissable (seul endroit qui change de page), ordre Agrandir / Paramètres / À propos |
 
-Numéro final affiché dans l'app : **0.2.1**.
+Numéro final affiché dans l'app : **0.3.1**.
