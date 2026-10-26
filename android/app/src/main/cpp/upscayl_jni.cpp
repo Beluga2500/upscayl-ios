@@ -21,23 +21,38 @@ static bool g_gpu_instance = false;
 
 static const int PREPADDING = 10;
 
+static bool prepare_gpu(bool want) {
+    if (!want) return false;
+    if (!g_gpu_instance) {
+        ncnn::create_gpu_instance();
+        g_gpu_instance = true;
+    }
+    return ncnn::get_gpu_count() > 0;
+}
+
+static ncnn::Net* make_net(bool gpu) {
+    ncnn::Net* n = new ncnn::Net();
+    n->opt.use_vulkan_compute = gpu;
+    n->opt.num_threads = std::max(1, ncnn::get_big_cpu_count());
+    if (gpu) n->set_vulkan_device(0);
+    return n;
+}
+
+static std::string to_std(JNIEnv* env, jstring s) {
+    const char* c = env->GetStringUTFChars(s, nullptr);
+    std::string r(c);
+    env->ReleaseStringUTFChars(s, c);
+    return r;
+}
+
+// Modèle fourni avec l'app (dossier assets/models)
 extern "C" JNIEXPORT jint JNICALL
 Java_fork_upscayl_android_Native_load(JNIEnv* env, jobject, jobject assetManager,
                                       jstring name, jboolean useGpu) {
-    const char* cname = env->GetStringUTFChars(name, nullptr);
-    std::string model(cname);
-    env->ReleaseStringUTFChars(name, cname);
+    std::string model = to_std(env, name);
+    bool gpu = prepare_gpu(useGpu == JNI_TRUE);
 
-    bool gpu = useGpu == JNI_TRUE;
-    if (gpu) {
-        if (!g_gpu_instance) {
-            ncnn::create_gpu_instance();
-            g_gpu_instance = true;
-        }
-        if (ncnn::get_gpu_count() <= 0) gpu = false;
-    }
-
-    std::string key = model + (gpu ? ":gpu" : ":cpu");
+    std::string key = "asset:" + model + (gpu ? ":gpu" : ":cpu");
     if (g_net && key == g_key) return gpu ? 1 : 0;
 
     delete g_net;
@@ -45,16 +60,38 @@ Java_fork_upscayl_android_Native_load(JNIEnv* env, jobject, jobject assetManager
     g_key.clear();
 
     AAssetManager* mgr = AAssetManager_fromJava(env, assetManager);
-
-    g_net = new ncnn::Net();
-    g_net->opt.use_vulkan_compute = gpu;
-    g_net->opt.num_threads = std::max(1, ncnn::get_big_cpu_count());
-    if (gpu) g_net->set_vulkan_device(0);
+    g_net = make_net(gpu);
 
     std::string param = "models/" + model + ".param";
     std::string bin = "models/" + model + ".bin";
     if (g_net->load_param(mgr, param.c_str()) != 0 || g_net->load_model(mgr, bin.c_str()) != 0) {
         LOGE("Chargement du modèle impossible : %s", model.c_str());
+        delete g_net;
+        g_net = nullptr;
+        return -1;
+    }
+    g_key = key;
+    return gpu ? 1 : 0;
+}
+
+// Modèle personnalisé importé par l'utilisateur (fichiers .param / .bin)
+extern "C" JNIEXPORT jint JNICALL
+Java_fork_upscayl_android_Native_loadFile(JNIEnv* env, jobject, jstring paramPath,
+                                          jstring binPath, jboolean useGpu) {
+    std::string param = to_std(env, paramPath);
+    std::string bin = to_std(env, binPath);
+    bool gpu = prepare_gpu(useGpu == JNI_TRUE);
+
+    std::string key = "file:" + param + (gpu ? ":gpu" : ":cpu");
+    if (g_net && key == g_key) return gpu ? 1 : 0;
+
+    delete g_net;
+    g_net = nullptr;
+    g_key.clear();
+
+    g_net = make_net(gpu);
+    if (g_net->load_param(param.c_str()) != 0 || g_net->load_model(bin.c_str()) != 0) {
+        LOGE("Chargement du modèle personnalisé impossible : %s", param.c_str());
         delete g_net;
         g_net = nullptr;
         return -1;

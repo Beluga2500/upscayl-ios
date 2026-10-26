@@ -17,6 +17,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +38,7 @@ fun AboutScreen(modifier: Modifier = Modifier) {
     val muted = onBg.copy(alpha = 0.7f)
     val uri = LocalUriHandler.current
     val version = AppInfo.VERSION
+    val scope = rememberCoroutineScope()
     val card = RoundedCornerShape(24.dp)
 
     Column(
@@ -59,6 +62,29 @@ fun AboutScreen(modifier: Modifier = Modifier) {
                 Text("Upscayl Android", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = onBg)
                 Text(Loc.t("Fork non officiel", "Unofficial fork"), color = muted)
                 Text("${Loc.t("Version", "Version")} $version", color = muted, fontSize = 12.sp)
+            }
+        }
+
+        GlassCard(Modifier.fillMaxWidth(), card) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(Loc.t("Mises à jour", "Updates"), fontWeight = FontWeight.Bold, color = onBg)
+                val status = when {
+                    Updater.checking -> Loc.t("Vérification…", "Checking…")
+                    Updater.failed -> Loc.t("Impossible de vérifier (hors ligne ?).", "Could not check (offline?).")
+                    Updater.available -> Loc.t("Version ${Updater.remote} disponible.", "Version ${Updater.remote} is available.")
+                    Updater.remote != null -> Loc.t("Tu as la dernière version.", "You have the latest version.")
+                    else -> "${Loc.t("Version installée", "Installed version")} : $version"
+                }
+                Text(status, color = muted, fontSize = 14.sp)
+                GlassButton(
+                    Loc.t("Rechercher une mise à jour", "Check for updates"),
+                    Modifier.fillMaxWidth(), enabled = !Updater.checking
+                ) { scope.launch { Updater.check() } }
+                if (Updater.available) {
+                    TextButton(onClick = { uri.openUri(Updater.APK_URL) }) {
+                        Text(Loc.t("Télécharger l'APK", "Download the APK"))
+                    }
+                }
             }
         }
 

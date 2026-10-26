@@ -43,6 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Loc.init(applicationContext)
         AppSettings.init(applicationContext)
+        CustomModels.refresh(applicationContext)
         enableEdgeToEdge()
         setContent {
             UpscaylTheme { Root() }
@@ -69,6 +70,7 @@ fun Root(vm: UpscaleViewModel = viewModel()) {
     val haptic = LocalHapticFeedback.current
 
     LaunchedEffect(Unit) { anim.snapTo(page.toFloat()) }
+    LaunchedEffect(Unit) { if (AppSettings.p.autoUpdateCheck) Updater.check() }
 
     val progress = scrub ?: anim.value
 

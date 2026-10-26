@@ -117,6 +117,7 @@ struct Prefs: Codable, Equatable {
     var compute: ComputeChoice = .auto
     var autoSave = false
     var notifications = false
+    var autoUpdateCheck = true
     var theme: AppTheme = .ocean
     var appearance: AppearanceMode = .system
 
@@ -136,6 +137,7 @@ struct Prefs: Codable, Equatable {
         compute = try c.decodeIfPresent(ComputeChoice.self, forKey: .compute) ?? .auto
         autoSave = try c.decodeIfPresent(Bool.self, forKey: .autoSave) ?? false
         notifications = try c.decodeIfPresent(Bool.self, forKey: .notifications) ?? false
+        autoUpdateCheck = try c.decodeIfPresent(Bool.self, forKey: .autoUpdateCheck) ?? true
         theme = try c.decodeIfPresent(AppTheme.self, forKey: .theme) ?? .ocean
         appearance = try c.decodeIfPresent(AppearanceMode.self, forKey: .appearance) ?? .system
     }
@@ -199,5 +201,5 @@ enum Notifier {
 
 enum AppInfo {
     /// Version de l'app : 0.<mises à jour de fonctionnalités>.<correctifs>  (voir CHANGELOG.md)
-    static let version = "0.7.2"
+    static let version = "0.8.2"
 }

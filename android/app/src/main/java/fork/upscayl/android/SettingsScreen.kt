@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
@@ -105,6 +106,17 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
     val onBg = MaterialTheme.colorScheme.onBackground
     var confirmReset by remember { mutableStateOf(false) }
     val notifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val context = LocalContext.current
+    var importMsg by remember { mutableStateOf<String?>(null) }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            val (ok, ignored) = CustomModels.importFiles(context, uris)
+            importMsg = Loc.t(
+                "$ok modèle(s) importé(s)" + if (ignored > 0) ", $ignored fichier(s) ignoré(s) (il faut la paire .param + .bin)." else ".",
+                "$ok model(s) imported" + if (ignored > 0) ", $ignored file(s) ignored (the .param + .bin pair is required)." else "."
+            )
+        }
+    }
 
     Column(
         modifier
@@ -272,12 +284,54 @@ fun SettingsScreen(modifier: Modifier = Modifier) {
             }
         }
 
+        // Mises à jour
+        Section(
+            Loc.t("Mises à jour", "Updates"),
+            Loc.t(
+                "Compare ta version à celle publiée sur GitHub. Rien d'autre n'est envoyé.",
+                "Compares your version with the one published on GitHub. Nothing else is sent."
+            )
+        ) {
+            SwitchRow(Loc.t("Vérifier au démarrage", "Check at launch"), p.autoUpdateCheck) { on ->
+                AppSettings.update { it.copy(autoUpdateCheck = on) }
+            }
+        }
+
+        // Modèles personnalisés
+        Section(
+            Loc.t("Modèles personnalisés", "Custom models"),
+            Loc.t(
+                "Choisis le fichier .param et le fichier .bin du même nom (ex. monmodele-x4.param et monmodele-x4.bin). L'échelle est lue dans le nom (x2, x3, x4). Le modèle doit être compatible Real-ESRGAN ncnn (entrée « data », sortie « output »).",
+                "Pick the .param and .bin files with the same name (e.g. mymodel-x4.param and mymodel-x4.bin). The scale is read from the name (x2, x3, x4). The model must be Real-ESRGAN ncnn compatible (input “data”, output “output”)."
+            )
+        ) {
+            CustomModels.list.forEach { m ->
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text(m.title, color = onBg, fontWeight = FontWeight.SemiBold)
+                        Text("×${m.scale}", color = onBg.copy(alpha = 0.6f), fontSize = 12.sp)
+                    }
+                    TextButton(onClick = { CustomModels.delete(context, m) }) {
+                        Text(Loc.t("Supprimer", "Delete"))
+                    }
+                }
+            }
+            GlassButton(Loc.t("Ajouter un modèle", "Add a model"), Modifier.fillMaxWidth()) {
+                importLauncher.launch(arrayOf("*/*"))
+            }
+            importMsg?.let { Text(it, color = onBg.copy(alpha = 0.7f), fontSize = 12.sp) }
+        }
+
         // Enregistrement et notifications
         Section(
             Loc.t("Enregistrement et notifications", "Saving and notifications"),
             Loc.t(
-                "Les notifications n'arrivent que si l'app est encore active en arrière-plan : garde-la ouverte pendant un agrandissement.",
-                "Notifications only arrive if the app is still active in the background: keep it open during an upscale."
+                "Une notification de progression s'affiche pendant le calcul, qui continue en arrière-plan.",
+                "A progress notification is shown while processing, which continues in the background."
             )
         ) {
             SwitchRow(Loc.t("Enregistrer automatiquement dans Photos", "Save automatically to Photos"), p.autoSave) { on ->

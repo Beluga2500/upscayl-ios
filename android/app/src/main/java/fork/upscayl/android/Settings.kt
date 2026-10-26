@@ -12,6 +12,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class OutputFormat(val label: String, val ext: String, val mime: String) {
     PNG("PNG", "png", "image/png"),
@@ -50,13 +56,14 @@ data class Prefs(
     val useGpu: Boolean = true,
     val autoSave: Boolean = false,
     val notifications: Boolean = false,
+    val autoUpdateCheck: Boolean = true,
     val theme: AppTheme = AppTheme.OCEAN,
     val appearance: Appearance = Appearance.SYSTEM
 )
 
 object AppInfo {
     /** 0.<mises à jour de fonctionnalités>.<correctifs>  (voir CHANGELOG.md) */
-    const val VERSION = "0.3.1"
+    const val VERSION = "0.4.1"
 }
 
 /** Vrai quand l'app est au premier plan (sert à décider d'envoyer une notification). */
@@ -91,11 +98,19 @@ object AppSettings {
                 useGpu = s.getBoolean("useGpu", d.useGpu),
                 autoSave = s.getBoolean("autoSave", d.autoSave),
                 notifications = s.getBoolean("notifications", d.notifications),
+                autoUpdateCheck = s.getBoolean("autoUpdateCheck", d.autoUpdateCheck),
                 theme = enumOr(s.getString("theme", null), d.theme),
                 appearance = enumOr(s.getString("appearance", null), d.appearance)
             )
         )
     }
+
+    /** Vrai une fois que l'autorisation de notifications a été demandée. */
+    var notifAsked: Boolean
+        get() = sp?.getBoolean("notifAsked", false) ?: false
+        set(v) {
+            sp?.edit()?.putBoolean("notifAsked", v)?.apply()
+        }
 
     fun update(change: (Prefs) -> Prefs) {
         p = sanitize(change(p))
@@ -128,6 +143,7 @@ object AppSettings {
         e.putBoolean("useGpu", x.useGpu)
         e.putBoolean("autoSave", x.autoSave)
         e.putBoolean("notifications", x.notifications)
+        e.putBoolean("autoUpdateCheck", x.autoUpdateCheck)
         e.putString("theme", x.theme.name)
         e.putString("appearance", x.appearance.name)
         e.apply()
@@ -135,23 +151,133 @@ object AppSettings {
 }
 
 object Notifier {
-    private const val CHANNEL = "upscayl_done"
+    private const val CH_DONE = "upscayl_done"
+    private const val CH_PROGRESS = "upscayl_progress"
+    const val PROGRESS_ID = 10
+    private const val DONE_ID = 1
+
+    private fun channels(context: Context) {
+        val nm = context.getSystemService(NotificationManager::class.java) ?: return
+        nm.createNotificationChannel(NotificationChannel(CH_DONE, "Upscayl", NotificationManager.IMPORTANCE_DEFAULT))
+        nm.createNotificationChannel(
+            NotificationChannel(CH_PROGRESS, Loc.t("Progression", "Progress"), NotificationManager.IMPORTANCE_LOW)
+        )
+    }
+
+    private fun launchIntent(context: Context): PendingIntent {
+        val i = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        return PendingIntent.getActivity(context, 0, i, PendingIntent.FLAG_IMMUTABLE)
+    }
+
+    fun buildProgress(context: Context, pct: Int, text: String): android.app.Notification {
+        channels(context)
+        return android.app.Notification.Builder(context, CH_PROGRESS)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("Upscayl")
+            .setContentText(text)
+            .setProgress(100, pct.coerceIn(0, 100), false)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setContentIntent(launchIntent(context))
+            .build()
+    }
+
+    /** Met à jour la notification de progression (celle du service au premier plan). */
+    fun progress(context: Context, pct: Int, text: String) {
+        context.getSystemService(NotificationManager::class.java)
+            ?.notify(PROGRESS_ID, buildProgress(context, pct, text))
+    }
 
     fun post(context: Context, title: String, text: String) {
         if (Build.VERSION.SDK_INT >= 33 &&
             context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
         val nm = context.getSystemService(NotificationManager::class.java) ?: return
-        nm.createNotificationChannel(NotificationChannel(CHANNEL, "Upscayl", NotificationManager.IMPORTANCE_DEFAULT))
-        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
-        val pi = PendingIntent.getActivity(context, 0, launch, PendingIntent.FLAG_IMMUTABLE)
-        val n = android.app.Notification.Builder(context, CHANNEL)
+        channels(context)
+        val n = android.app.Notification.Builder(context, CH_DONE)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setContentTitle(title)
             .setContentText(text)
-            .setContentIntent(pi)
+            .setContentIntent(launchIntent(context))
             .setAutoCancel(true)
             .build()
-        nm.notify(1, n)
+        nm.notify(DONE_ID, n)
+    }
+}
+
+/** Compare la version installée à celle publiée sur la release « latest ». */
+object Updater {
+    private const val BASE = "https://github.com/akuuvfx/upscayl-ios/releases/download/latest/"
+    const val APK_URL = BASE + "Upscayl-Android.apk"
+    private const val VERSION_URL = BASE + "version-android.txt"
+
+    var remote by mutableStateOf<String?>(null)
+        private set
+    var available by mutableStateOf(false)
+        private set
+    var checking by mutableStateOf(false)
+        private set
+    var failed by mutableStateOf(false)
+        private set
+    var dismissed by mutableStateOf(false)
+
+    suspend fun check() {
+        if (checking) return
+        checking = true
+        failed = false
+        try {
+            val text = withContext(Dispatchers.IO) {
+                val c = URL(VERSION_URL).openConnection() as HttpURLConnection
+                try {
+                    c.connectTimeout = 10_000
+                    c.readTimeout = 10_000
+                    c.useCaches = false
+                    if (c.responseCode == 200) c.inputStream.bufferedReader().readText().trim() else null
+                } finally {
+                    c.disconnect()
+                }
+            }
+            if (text == null) {
+                failed = true
+            } else {
+                remote = text
+                available = isNewer(text, AppInfo.VERSION)
+                if (available) dismissed = false
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            failed = true
+        } finally {
+            checking = false
+        }
+    }
+
+    fun isNewer(a: String, b: String): Boolean {
+        val x = a.split(".").map { it.toIntOrNull() ?: 0 }
+        val y = b.split(".").map { it.toIntOrNull() ?: 0 }
+        for (i in 0 until maxOf(x.size, y.size)) {
+            val p = x.getOrElse(i) { 0 }
+            val q = y.getOrElse(i) { 0 }
+            if (p != q) return p > q
+        }
+        return false
+    }
+}
+
+object Eta {
+    /** Durée restante lisible : « quelques secondes », « ≈ 45 s », « ≈ 3 min 20 s ». */
+    fun text(seconds: Double): String {
+        val t = seconds.roundToInt()
+        return when {
+            t < 5 -> Loc.t("quelques secondes", "a few seconds")
+            t < 60 -> "≈ $t s"
+            t < 3600 -> {
+                val m = t / 60
+                val r = t % 60
+                if (r == 0) "≈ $m min" else "≈ $m min $r s"
+            }
+            else -> "≈ ${t / 3600} h ${(t % 3600) / 60} min"
+        }
     }
 }

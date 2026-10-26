@@ -72,6 +72,15 @@ jobs:
       - name: Publier sur la release "latest"
         env:
           GH_TOKEN: ${{ github.token }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_IOS }}
         run: |
+          OLD=$(curl -fsSL "https://github.com/${{ github.repository }}/releases/download/latest/version-ios.txt" 2>/dev/null | tr -d '[:space:]' || true)
           gh release create latest -R "${{ github.repository }}" --title "Dernière version" --notes "Builds automatiques (lien fixe)." --target "$GITHUB_SHA" || true
-          gh release upload latest build/Upscayl.ipa -R "${{ github.repository }}" --clobber
+          VERSION=$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/Settings.swift)
+          echo "$VERSION" > version-ios.txt
+          gh release upload latest build/Upscayl.ipa version-ios.txt -R "${{ github.repository }}" --clobber
+          if [ -n "$DISCORD_WEBHOOK" ] && [ "$VERSION" != "$OLD" ]; then
+            curl -sS -X POST -H "Content-Type: application/json" \
+              -d "{\"content\":\"<@&1562553235720511641> Mise à jour d'Upscayl pour iOS (version $VERSION)\\nTéléchargement : <https://github.com/${{ github.repository }}/releases/download/latest/Upscayl.ipa>\",\"allowed_mentions\":{\"roles\":[\"1562553235720511641\"]}}" \
+              "$DISCORD_WEBHOOK"
+          fi

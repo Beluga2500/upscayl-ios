@@ -25,9 +25,22 @@ object Native {
     }
 
     external fun load(assets: AssetManager, name: String, useGpu: Boolean): Int
+    external fun loadFile(paramPath: String, binPath: String, useGpu: Boolean): Int
     external fun process(
         input: Bitmap, output: Bitmap, scale: Int, tile: Int, tta: Boolean, cb: ProgressCallback
     ): Int
+}
+
+/** Modèle utilisable par le moteur : fourni avec l'app (assets) ou importé (fichiers). */
+data class ModelRef(
+    val id: String,
+    val title: String,
+    val detail: String,
+    val scale: Int = 4,
+    val paramPath: String? = null,
+    val binPath: String? = null
+) {
+    val isCustom: Boolean get() = paramPath != null
 }
 
 enum class UpscaleModel(
@@ -74,6 +87,7 @@ enum class UpscaleModel(
 
     val title: String get() = titleText
     val detail: String get() = Loc.t(fr, en)
+    val ref: ModelRef get() = ModelRef(id, titleText, detail, 4)
 }
 
 data class UpscaleOptions(
@@ -88,7 +102,11 @@ data class UpscaleOptions(
 class UpscaleResult(val bitmap: Bitmap, val usedGpu: Boolean, val fellBack: Boolean, val clamped: Boolean)
 
 object Engine {
-    const val SCALE = 4
+    const val SCALE = 4   // pire cas, pour borner la mémoire
+
+    fun loadModel(context: Context, m: ModelRef, gpu: Boolean): Int =
+        if (m.paramPath != null && m.binPath != null) Native.loadFile(m.paramPath, m.binPath, gpu)
+        else Native.load(context.assets, m.id, gpu)
     const val MAX_OUTPUT_PIXELS = 64_000_000L
 
     /** Décode l'image (EXIF appliqué) et la réduit si la sortie x4 dépasserait la limite mémoire. */
@@ -117,14 +135,15 @@ object Engine {
     suspend fun upscale(
         context: Context,
         input: Bitmap,
-        model: UpscaleModel,
+        model: ModelRef,
         o: UpscaleOptions,
         onProgress: (Float) -> Unit
     ): UpscaleResult = withContext(Dispatchers.Default) {
         val job = currentCoroutineContext()[Job]
         var fellBack = false
 
-        val mode = Native.load(context.assets, model.id, o.useGpu)
+        val k = model.scale
+        val mode = loadModel(context, model, o.useGpu)
         if (mode < 0) {
             throw IllegalStateException(Loc.t("Modèle introuvable : ${model.title}", "Model not found: ${model.title}"))
         }
@@ -153,7 +172,7 @@ object Engine {
         // Une passe d'IA x4 (repli CPU si le GPU échoue)
         fun pass(src: Bitmap, from: Float, to: Float): Bitmap {
             val out = try {
-                Bitmap.createBitmap(src.width * SCALE, src.height * SCALE, Bitmap.Config.ARGB_8888)
+                Bitmap.createBitmap(src.width * k, src.height * k, Bitmap.Config.ARGB_8888)
             } catch (e: OutOfMemoryError) {
                 throw IllegalStateException(Loc.t("Mémoire insuffisante pour cette image.", "Not enough memory for this image."))
             }
@@ -161,15 +180,15 @@ object Engine {
                 onProgress(from + p * (to - from))
                 job?.isActive != false
             }
-            var r = Native.process(src, out, SCALE, if (o.tile > 0) o.tile else if (gpu) 192 else 96, o.tta, cb)
+            var r = Native.process(src, out, k, if (o.tile > 0) o.tile else if (gpu) 192 else 96, o.tta, cb)
             if (r == -2 && gpu) {
                 fellBack = true
                 gpu = false
                 onProgress(from)
-                if (Native.load(context.assets, model.id, false) < 0) {
+                if (loadModel(context, model, false) < 0) {
                     throw IllegalStateException(Loc.t("Modèle introuvable : ${model.title}", "Model not found: ${model.title}"))
                 }
-                r = Native.process(src, out, SCALE, if (o.tile > 0) o.tile else 96, o.tta, cb)
+                r = Native.process(src, out, k, if (o.tile > 0) o.tile else 96, o.tta, cb)
             }
             when (r) {
                 0 -> Unit
@@ -185,8 +204,8 @@ object Engine {
         // Double Upscayl : le résultat est ramené à (cible / 4) puis ré-agrandi x4 par l'IA.
         // À l'échelle x16 c'est un double passage complet ; en dessous, la mémoire reste bornée.
         if (o.double) {
-            val iw = max(1, (tw + SCALE - 1) / SCALE)
-            val ih = max(1, (th + SCALE - 1) / SCALE)
+            val iw = max(1, (tw + k - 1) / k)
+            val ih = max(1, (th + k - 1) / k)
             val mid = Bitmap.createScaledBitmap(result, iw, ih, true)
             if (mid !== result) result.recycle()
             result = pass(mid, 0.5f, 1f)

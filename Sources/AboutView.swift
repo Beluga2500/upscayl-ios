@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AboutView: View {
     @EnvironmentObject private var loc: Loc
+    @ObservedObject private var updater = Updater.shared
     private let card = RoundedRectangle(cornerRadius: 26, style: .continuous)
 
     var body: some View {
@@ -11,6 +12,7 @@ struct AboutView: View {
                     .font(.largeTitle.bold())
                     .frame(maxWidth: .infinity, alignment: .leading)
                 header
+                updateCard
                 forkCard
                 creditsCard
                 licenseCard
@@ -43,6 +45,40 @@ struct AboutView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
+        .glass(card)
+    }
+
+    private var updateStatus: String {
+        if updater.checking { return loc.t("Vérification…", "Checking…") }
+        if updater.failed { return loc.t("Impossible de vérifier (hors ligne ?).", "Could not check (offline?).") }
+        if updater.available, let v = updater.remoteVersion {
+            return loc.t("Version \(v) disponible.", "Version \(v) is available.")
+        }
+        if updater.remoteVersion != nil { return loc.t("Tu as la dernière version.", "You have the latest version.") }
+        return "\(loc.t("Version installée", "Installed version")) : \(AppInfo.version)"
+    }
+
+    private var updateCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(loc.t("Mises à jour", "Updates")).font(.headline)
+            Text(updateStatus).font(.subheadline).foregroundColor(.secondary)
+            Button {
+                Task { await updater.check() }
+            } label: {
+                Text(loc.t("Rechercher une mise à jour", "Check for updates"))
+            }
+            .buttonStyle(GlassButtonStyle())
+            .disabled(updater.checking)
+            if updater.available {
+                Link(destination: Updater.pageURL) {
+                    Label(loc.t("Ouvrir la page de téléchargement", "Open the download page"),
+                          systemImage: "arrow.up.right.square")
+                        .font(.subheadline)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
         .glass(card)
     }
 

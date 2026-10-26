@@ -47,6 +47,7 @@ struct SettingsView: View {
                 tileSection
                 ttaSection
                 computeSection
+                updatesSection
                 savingSection
                 resetSection
 
@@ -231,6 +232,16 @@ struct SettingsView: View {
                     .foregroundColor(theme.accent)
                 }
             }
+        }
+    }
+
+    private var updatesSection: some View {
+        SettingsSection(
+            title: loc.t("Mises à jour", "Updates"),
+            footer: loc.t("Compare ta version à celle publiée sur GitHub. Rien d'autre n'est envoyé.",
+                          "Compares your version with the one published on GitHub. Nothing else is sent.")
+        ) {
+            Toggle(loc.t("Vérifier au démarrage", "Check at launch"), isOn: $settings.p.autoUpdateCheck)
         }
     }
 
