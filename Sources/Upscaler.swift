@@ -298,13 +298,13 @@ final class Upscaler {
 
             let provider = try MLDictionaryFeatureProvider(
                 dictionary: ["input": MLFeatureValue(pixelBuffer: inBuf)])
-            let result: MLFeatureProvider
+            let bgBefore = Self.cpuOnlyNow; let result: MLFeatureProvider
             do {
                 result = try netProvider().prediction(from: provider)
             } catch {
                 // Passage en arrière-plan pendant la tuile : on réessaie sur le processeur
                 guard Self.cpuOnlyNow else { throw error }
-                if Self.backgroundCompute(o.compute) == .neural { Self.neuralFailedInBackground = true }
+                if bgBefore { Self.neuralFailedInBackground = true }
                 result = try netProvider().prediction(from: provider)
             }
             guard let outBuf = result.featureValue(for: "output")?.imageBufferValue,
