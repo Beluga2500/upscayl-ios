@@ -136,6 +136,11 @@ final class ViewModel: ObservableObject {
         isRunning = true
         UIApplication.shared.isIdleTimerDisabled = true
         refreshDisplay()
+        BackgroundWork.shared.onExpire = { [weak self] in
+            Task { @MainActor in self?.cancel() }
+        }
+        BackgroundWork.shared.begin(title: "Upscayl",
+                                    subtitle: loc.t("Agrandissement en cours…", "Upscaling…"))
 
         let model = self.model
         let upscaler = self.upscaler
@@ -153,6 +158,8 @@ final class ViewModel: ObservableObject {
         if g > 0.02 && elapsed > 3 {
             eta = Eta.text(remaining: elapsed * (1 - g) / g, loc: loc)
         }
+        BackgroundWork.shared.update(progress: progress,
+                                     subtitle: eta.map { "\($0) \(loc.t("restantes", "left"))" } ?? "")
     }
 
     private func runBatch(model: UpscaleModel, opts: UpscaleOptions, prefs: Prefs, upscaler: Upscaler) async {
@@ -163,11 +170,23 @@ final class ViewModel: ObservableObject {
         var failures = 0
         var lastError = ""
 
+        // Les images sont lues maintenant (app au premier plan), puis traitées même en arrière-plan
+        var inputs: [URL?] = []
+        for i in 0..<n {
+            var url: URL?
+            if let data = try? await items[i].picker.loadTransferable(type: Data.self) {
+                let u = FileManager.default.temporaryDirectory.appendingPathComponent("Upscayl_in_\(i)")
+                if (try? data.write(to: u)) != nil { url = u }
+            }
+            inputs.append(url)
+        }
+
         for i in 0..<n {
             if Task.isCancelled { break }
             items[i].status = .running
             do {
-                guard let data = try await items[i].picker.loadTransferable(type: Data.self) else {
+                guard let inURL = inputs[i],
+                      let data = try? Data(contentsOf: inURL, options: .mappedIfSafe) else {
                     throw UpscaleError.badImage
                 }
                 let work = Task.detached(priority: .userInitiated) { [weak self] () throws -> ItemOutput in
@@ -207,6 +226,7 @@ final class ViewModel: ObservableObject {
                 lastError = error.localizedDescription
                 items[i].status = .failed(lastError)
             }
+            if let u = inputs[i] { try? FileManager.default.removeItem(at: u) }
         }
 
         let cancelled = Task.isCancelled
@@ -214,6 +234,7 @@ final class ViewModel: ObservableObject {
         eta = nil
         if !cancelled { progress = 1 }
         UIApplication.shared.isIdleTimerDisabled = false
+        BackgroundWork.shared.end(success: !cancelled && failures == 0)
 
         var parts: [String] = []
         if cancelled { parts.append(loc.t("Annulé.", "Cancelled.")) }
@@ -229,7 +250,10 @@ final class ViewModel: ObservableObject {
         message = parts.isEmpty ? nil : parts.joined(separator: " ")
 
         if prefs.notifications && !cancelled {
-            Notifier.post("Upscayl", loc.t("Agrandissement terminé.", "Upscale finished."))
+            let ok = doneCount
+            Notifier.post("Upscayl", n > 1
+                ? loc.t("Agrandissement terminé : \(ok)/\(n) images.", "Upscale finished: \(ok)/\(n) images.")
+                : loc.t("Agrandissement terminé.", "Upscale finished."))
         }
     }
 
@@ -322,62 +346,34 @@ struct ContentView: View {
     @StateObject private var vm = ViewModel()
     @EnvironmentObject private var loc: Loc
     @EnvironmentObject private var settings: AppSettings
+    @Environment(\.theme) private var theme
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var tab = 0
 
-    @State private var page = 0
-    @State private var scrub: CGFloat?
-
+    /// Barre d'onglets native : c'est le vrai Liquid Glass d'Apple sur iOS 26 (app compilée avec Xcode 26).
+    /// Seule la barre change d'onglet : aucun balayage sur le contenu.
     var body: some View {
-        GeometryReader { geo in
-            let w = geo.size.width
-            let progress = currentProgress()
-
-            ZStack {
-                GlassBackground()
-
-                // Les pages ne se déplacent qu'avec la barre d'onglets (aucun balayage sur le contenu)
-                HStack(spacing: 0) {
-                    UpscaleView(vm: vm).frame(width: w)
-                    SettingsView().frame(width: w)
-                    AboutView().frame(width: w)
-                }
-                .frame(width: w * 3, alignment: .leading)
-                .offset(x: -progress * w)
-                .frame(width: w, alignment: .leading)
-                .clipped()
-            }
-            .safeAreaInset(edge: .bottom, spacing: 0) {
-                GlassTabBar(
-                    items: [
-                        (icon: "wand.and.stars", title: loc.t("Agrandir", "Upscale")),
-                        (icon: "gearshape", title: loc.t("Paramètres", "Settings")),
-                        (icon: "info.circle", title: loc.t("À propos", "About"))
-                    ],
-                    progress: progress,
-                    lifted: scrub != nil,
-                    onScrub: { v in
-                        withAnimation(.interactiveSpring(response: 0.25, dampingFraction: 0.85)) { scrub = v }
-                    },
-                    onSettle: { target in settle(to: target) }
-                )
-                .padding(.horizontal, 24)
-                .padding(.bottom, 6)
-            }
+        TabView(selection: $tab) {
+            UpscaleView(vm: vm)
+                .background { GlassBackground() }
+                .tabItem { Label(loc.t("Agrandir", "Upscale"), systemImage: "wand.and.stars") }
+                .tag(0)
+            SettingsView()
+                .background { GlassBackground() }
+                .tabItem { Label(loc.t("Paramètres", "Settings"), systemImage: "gearshape") }
+                .tag(1)
+            AboutView()
+                .background { GlassBackground() }
+                .tabItem { Label(loc.t("À propos", "About"), systemImage: "info.circle") }
+                .tag(2)
         }
+        .tint(theme.accent)
         .task {
             if settings.p.autoUpdateCheck { await Updater.shared.check() }
         }
-    }
-
-    private func currentProgress() -> CGFloat {
-        scrub ?? CGFloat(page)
-    }
-
-    private func settle(to target: Int) {
-        let t = min(max(target, 0), 2)
-        if t != page { UISelectionFeedbackGenerator().selectionChanged() }
-        withAnimation(.spring(response: 0.42, dampingFraction: 0.82)) {
-            page = t
-            scrub = nil
+        .onChange(of: scenePhase) { phase in
+            // En arrière-plan le GPU est interdit : le calcul bascule sur le processeur
+            Upscaler.cpuOnlyNow = (phase == .background)
         }
     }
 }
@@ -603,6 +599,11 @@ struct UpscaleView: View {
                             Spacer()
                             Button(loc.t("Annuler", "Cancel"), role: .destructive) { vm.cancel() }
                                 .font(.footnote)
+                        }
+                        if #available(iOS 26.0, *) {
+                            Text(loc.t("Tu peux quitter l'app : le calcul continue.", "You can leave the app: processing continues."))
+                                .font(.caption2).foregroundColor(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                     .padding(.vertical, 12)

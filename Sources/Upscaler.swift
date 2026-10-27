@@ -99,6 +99,9 @@ final class Upscaler {
     static let bitmapInfo: UInt32 =
         CGImageAlphaInfo.noneSkipFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
 
+    /// Vrai quand l'app est en arrière-plan : le GPU y est interdit, on calcule sur le processeur.
+    static var cpuOnlyNow = false
+
     private var cache: [String: (model: MLModel, tiles: [Int])] = [:]
 
     private func loadModel(_ m: UpscaleModel, compute: ComputeChoice) throws -> (model: MLModel, tiles: [Int]) {
@@ -161,6 +164,9 @@ final class Upscaler {
         let k = Self.modelScale
         let loaded = try loadModel(model, compute: o.compute)
         let T = Self.pickTile(requested: o.tile, tiles: loaded.tiles)
+        let netProvider: () throws -> MLModel = { [unowned self] in
+            try self.loadModel(model, compute: Self.cpuOnlyNow ? .cpu : o.compute).model
+        }
 
         guard var cg = Self.flattened(input) else { throw UpscaleError.badImage }
 
@@ -195,7 +201,7 @@ final class Upscaler {
         }
 
         // 1re passe (x4)
-        var result = try runPass(cg, net: loaded.model, tile: T, tta: o.tta) { p in
+        var result = try runPass(cg, netProvider: netProvider, tile: T, tta: o.tta) { p in
             progress(o.double ? p * 0.5 : p)
         }
 
@@ -205,7 +211,7 @@ final class Upscaler {
             let iw = max(1, (tw + k - 1) / k), ih = max(1, (th + k - 1) / k)
             guard let mid = Self.resize(result, to: iw, ih) else { throw UpscaleError.outOfMemory }
             result = mid   // libère la sortie de la 1re passe
-            result = try runPass(mid, net: loaded.model, tile: T, tta: o.tta) { p in
+            result = try runPass(mid, netProvider: netProvider, tile: T, tta: o.tta) { p in
                 progress(0.5 + p * 0.5)
             }
         }
@@ -219,7 +225,7 @@ final class Upscaler {
 
     /// Une passe d'IA x4 sur toute l'image (par tuiles).
     private func runPass(_ cg: CGImage,
-                         net: MLModel,
+                         netProvider: () throws -> MLModel,
                          tile T: Int,
                          tta: Bool,
                          progress: (Double) -> Void) throws -> CGImage {
@@ -284,7 +290,14 @@ final class Upscaler {
 
             let provider = try MLDictionaryFeatureProvider(
                 dictionary: ["input": MLFeatureValue(pixelBuffer: inBuf)])
-            let result = try net.prediction(from: provider)
+            let result: MLFeatureProvider
+            do {
+                result = try netProvider().prediction(from: provider)
+            } catch {
+                // Passage en arrière-plan pendant la tuile : on réessaie sur le processeur
+                guard Self.cpuOnlyNow else { throw error }
+                result = try netProvider().prediction(from: provider)
+            }
             guard let outBuf = result.featureValue(for: "output")?.imageBufferValue,
                   CVPixelBufferGetWidth(outBuf) == N,
                   CVPixelBufferGetPixelFormatType(outBuf) == kCVPixelFormatType_32BGRA

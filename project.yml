@@ -6,8 +6,8 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.9"
-    MARKETING_VERSION: "0.8.2"
-    CURRENT_PROJECT_VERSION: "8"
+    MARKETING_VERSION: "0.9.2"
+    CURRENT_PROJECT_VERSION: "9"
 targets:
   Upscayl:
     type: application
@@ -20,6 +20,8 @@ targets:
         CFBundleDisplayName: Upscayl
         UILaunchScreen: {}
         UIApplicationSupportsIndirectInputEvents: true
+        BGTaskSchedulerPermittedIdentifiers:
+          - "$(PRODUCT_BUNDLE_IDENTIFIER).upscale"
         NSPhotoLibraryAddUsageDescription: "Enregistrer les images agrandies dans Photos. / Save upscaled images to Photos."
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait

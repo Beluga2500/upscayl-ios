@@ -248,8 +248,8 @@ struct SettingsView: View {
     private var savingSection: some View {
         SettingsSection(
             title: loc.t("Enregistrement et notifications", "Saving and notifications"),
-            footer: loc.t("Les notifications n'arrivent que si l'app est encore active en arrière-plan : garde-la ouverte pendant un agrandissement.",
-                          "Notifications only arrive if the app is still active in the background: keep it open during an upscale.")
+            footer: loc.t("Sur iOS 26, l'agrandissement continue en arrière-plan (plus lent, sur le processeur) et une notification t'avertit à la fin. Avant iOS 26, garde l'app ouverte.",
+                          "On iOS 26, upscaling continues in the background (slower, on the CPU) and a notification tells you when it is done. Before iOS 26, keep the app open.")
         ) {
             Toggle(loc.t("Enregistrer automatiquement dans Photos", "Save automatically to Photos"),
                    isOn: $settings.p.autoSave)

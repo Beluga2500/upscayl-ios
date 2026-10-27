@@ -3,7 +3,7 @@
 Numérotation : **0.A.B**, où **A** = nombre de mises à jour de fonctionnalités de l'app et **B** = nombre de correctifs.
 (Les changements qui ne touchent que le dépôt, le README ou les liens de téléchargement ne sont pas comptés.)
 
-## iOS : 0.8.2 (8 mises à jour de fonctionnalités, 2 correctifs)
+## iOS : 0.9.2 (9 mises à jour de fonctionnalités, 2 correctifs)
 
 | Version | Type | Contenu |
 |---|---|---|
@@ -17,8 +17,9 @@ Numérotation : **0.A.B**, où **A** = nombre de mises à jour de fonctionnalit�
 | 0.6.2 | fonctionnalité | Échelle sur l'écran principal, thèmes, ordre des onglets |
 | 0.7.2 | fonctionnalité | Option Double Upscayl |
 | 0.8.2 | fonctionnalité | Vérification de mise à jour, estimation du temps restant, traitement par lot (flèches gauche / droite, zoom et avant/après conservés) |
+| 0.9.2 | fonctionnalité | Barre d'onglets native (vrai Liquid Glass d'iOS 26), calcul en arrière-plan (tâche de traitement continu iOS 26, repli CPU), notifications de fin |
 
-Numéro final affiché dans l'app : **0.8.2** (la version de chaque ligne = fonctionnalités cumulées . correctifs cumulés).
+Numéro final affiché dans l'app : **0.9.2** (la version de chaque ligne = fonctionnalités cumulées . correctifs cumulés).
 
 ## Android : 0.4.1 (4 mises à jour de fonctionnalités, 1 correctif)
 

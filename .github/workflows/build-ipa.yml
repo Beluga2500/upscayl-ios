@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: macos-15
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
 
@@ -38,6 +38,12 @@ jobs:
             xcrun coremlcompiler compile "$p" build/compiled
           done
           ls build/compiled
+
+      - name: Xcode le plus récent (SDK iOS 26 = vrai Liquid Glass)
+        run: |
+          X=$(ls -d /Applications/Xcode_*.app 2>/dev/null | sort -V | tail -1)
+          if [ -n "$X" ]; then sudo xcode-select -s "$X/Contents/Developer"; fi
+          xcodebuild -version
 
       - name: Génération du projet Xcode
         run: |
