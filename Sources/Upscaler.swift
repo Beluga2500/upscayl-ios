@@ -102,6 +102,14 @@ final class Upscaler {
     /// Vrai quand l'app est en arrière-plan : le GPU y est interdit, on calcule sur le processeur.
     static var cpuOnlyNow = false
 
+    /// Passe à vrai si le Neural Engine échoue en arrière-plan : on retombe alors sur le processeur.
+    static var neuralFailedInBackground = false
+
+    /// En arrière-plan : le GPU est interdit, mais pas le Neural Engine (bien plus rapide que le processeur).
+    static func backgroundCompute(_ chosen: ComputeChoice) -> ComputeChoice {
+        (chosen == .cpu || neuralFailedInBackground) ? .cpu : .neural
+    }
+
     private var cache: [String: (model: MLModel, tiles: [Int])] = [:]
 
     private func loadModel(_ m: UpscaleModel, compute: ComputeChoice) throws -> (model: MLModel, tiles: [Int]) {
@@ -165,7 +173,7 @@ final class Upscaler {
         let loaded = try loadModel(model, compute: o.compute)
         let T = Self.pickTile(requested: o.tile, tiles: loaded.tiles)
         let netProvider: () throws -> MLModel = { [unowned self] in
-            try self.loadModel(model, compute: Self.cpuOnlyNow ? .cpu : o.compute).model
+            try self.loadModel(model, compute: Self.cpuOnlyNow ? Self.backgroundCompute(o.compute) : o.compute).model
         }
 
         guard var cg = Self.flattened(input) else { throw UpscaleError.badImage }
@@ -296,6 +304,7 @@ final class Upscaler {
             } catch {
                 // Passage en arrière-plan pendant la tuile : on réessaie sur le processeur
                 guard Self.cpuOnlyNow else { throw error }
+                if Self.backgroundCompute(o.compute) == .neural { Self.neuralFailedInBackground = true }
                 result = try netProvider().prediction(from: provider)
             }
             guard let outBuf = result.featureValue(for: "output")?.imageBufferValue,

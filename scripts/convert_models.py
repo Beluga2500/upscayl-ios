@@ -188,7 +188,10 @@ def to_coreml(net):
             outputs=[ct.ImageType(name="output", color_layout=ct.colorlayout.RGB)],
             convert_to="mlprogram",
             minimum_deployment_target=ct.target.iOS16,
-            compute_precision=ct.precision.FLOAT16, skip_model_load=True,
+            compute_precision=ct.precision.FLOAT16,
+            # Ne pas charger le modèle pendant la conversion : sur les runners macOS (VM sans GPU/ANE),
+            # le chargement Core ML plante en natif (Trace/BPT trap, code 133).
+            skip_model_load=True,
         )
 
     try:
@@ -201,7 +204,9 @@ def to_coreml(net):
 
 
 def check_coreml(ml, enumerated):
-    if sys.platform != "darwin":
+    # Test de prédiction facultatif (CHECK_COREML=1), à lancer sur un vrai Mac uniquement :
+    # en CI le runtime Core ML plante en natif et ce plantage n'est pas rattrapable.
+    if sys.platform != "darwin" or os.environ.get("CHECK_COREML") != "1":
         return
     from PIL import Image
 
@@ -226,7 +231,7 @@ def main():
             net = build_from_ncnn(os.path.join(MODELS_DIR, name))
             check_torch(net)
             ml, enumerated = to_coreml(net)
-            pass
+            check_coreml(ml, enumerated)
             ml.save(os.path.join(OUT, name + ".mlpackage"))
             ok.append(name)
             print("  OK", "(tuiles variables)" if enumerated else "(tuile 128 fixe)")

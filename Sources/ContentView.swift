@@ -372,8 +372,9 @@ struct ContentView: View {
             if settings.p.autoUpdateCheck { await Updater.shared.check() }
         }
         .onChange(of: scenePhase) { phase in
-            // En arrière-plan le GPU est interdit : le calcul bascule sur le processeur
+            // En arrière-plan le GPU est interdit : le calcul bascule sur le Neural Engine (ou le processeur)
             Upscaler.cpuOnlyNow = (phase == .background)
+            if phase == .active { Upscaler.neuralFailedInBackground = false }
         }
     }
 }
