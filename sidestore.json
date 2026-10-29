@@ -1,6 +1,12 @@
 {
   "name": "Upscayl Mobile",
   "identifier": "com.akuuvfx.upscayl.source",
+  "subtitle": "Upscayl pour iOS",
+  "description": "Source AltStore / SideStore pour Upscayl iOS (version non officielle).",
+  "iconURL": "https://github.com/akuuvfx/upscayl-ios/raw/main/icon.png",
+  "website": "https://github.com/akuuvfx/upscayl-ios",
+  "tintColor": "#8B5CF6",
+  "sourceURL": "https://raw.githubusercontent.com/akuuvfx/upscayl-ios/main/sidestore.json",
   "apps": [
     {
       "name": "Upscayl",
@@ -10,16 +16,32 @@
       "localizedDescription": "Version iOS non officielle d'Upscayl pour améliorer et agrandir des images grâce à l'intelligence artificielle.",
       "iconURL": "https://github.com/akuuvfx/upscayl-ios/raw/main/icon.png",
       "tintColor": "#8B5CF6",
-      "category": "graphics-design",
+      "category": "photo-video",
+      "screenshotURLs": [],
+      "version": "1.0.0",
+      "versionDate": "2026-10-26",
+      "versionDescription": "Première version.",
+      "downloadURL": "https://github.com/akuuvfx/upscayl-ios/releases/download/latest/Upscayl.ipa",
+      "size": 50000000,
+      "appPermissions": {
+        "entitlements": [],
+        "privacy": {
+          "NSPhotoLibraryUsageDescription": "Accès à vos photos pour les améliorer.",
+          "NSPhotoLibraryAddUsageDescription": "Enregistrer les images améliorées."
+        }
+      },
       "versions": [
         {
           "version": "1.0.0",
-          "date": "2026-10-26T00:00:00Z",
+          "buildVersion": "1",
+          "date": "2026-10-26",
+          "localizedDescription": "Première version.",
           "downloadURL": "https://github.com/akuuvfx/upscayl-ios/releases/download/latest/Upscayl.ipa",
-          "size": 0,
+          "size": 50000000,
           "minOSVersion": "16.0"
         }
       ]
     }
-  ]
+  ],
+  "news": []
 }
