@@ -1,29 +1,16 @@
-
 {
   "name": "Upscayl Mobile",
   "identifier": "com.akuuvfx.upscayl.source",
-  "sourceURL": "https://raw.githubusercontent.com/akuuvfx/upscayl-ios/main/sidestore.json",
-  "subtitle": "AI Image Upscaling for iOS",
-  "description": "Discover Upscayl Mobile, an unofficial iOS port of Upscayl for AI-powered image upscaling.",
-  "iconURL": "https://raw.githubusercontent.com/akuuvfx/upscayl-ios/main/icon.png",
-  "website": "https://github.com/akuuvfx/upscayl-ios",
-  "tintColor": "#8B5CF6",
   "apps": [
     {
       "name": "Upscayl",
       "bundleIdentifier": "com.akuuvfx.upscayl",
       "developerName": "akuuvfx",
-      "subtitle": "AI Image Upscaling",
-      "localizedDescription": "An unofficial iOS version of Upscayl designed to upscale and enhance images using AI-powered image processing. A clean, modern experience inspired by the original Upscayl project.",
-      "iconURL": "https://raw.githubusercontent.com/akuuvfx/upscayl-ios/main/icon.png",
+      "subtitle": "Amélioration d'images par IA",
+      "localizedDescription": "Version iOS non officielle d'Upscayl pour améliorer et agrandir des images grâce à l'intelligence artificielle.",
+      "iconURL": "https://github.com/akuuvfx/upscayl-ios/raw/main/icon.png",
       "tintColor": "#8B5CF6",
       "category": "graphics-design",
-      "version": "1.0.0",
-      "versionDate": "2026-10-26T00:00:00Z",
-      "versionDescription": "Initial release.",
-      "size": 0,
-      "downloadURL": "https://github.com/akuuvfx/upscayl-ios/releases/download/latest/Upscayl.ipa",
-      "minOSVersion": "16.0",
       "versions": [
         {
           "version": "1.0.0",
